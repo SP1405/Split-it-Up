@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SplitSnap - test payment</title>
+  <style>body { font-family: system-ui; max-width: 420px; margin: 40px auto; padding: 0 16px; }</style>
+</head>
+<body>
+  <h1>SplitSnap</h1>
+  <p>Test payment: <b>$5.00</b></p>
+  <div id="paypal-buttons"></div>
+  <p id="result"></p>
+
+  <script>
+    (async () => {
+      const { clientId } = await (await fetch("/api/config")).json();
+      const script = document.createElement("script");
+      // enable-funding=venmo shows the Venmo button; buyer-country=US is needed to see it in sandbox
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons&enable-funding=venmo&buyer-country=US`;
+      script.onload = () => {
+        paypal.Buttons({
+          createOrder: async () => {
+            const res = await fetch("/api/orders", { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            return data.id;
+          },
+          onApprove: async (data) => {
+            const res = await fetch(`/api/orders/${data.orderID}/capture`, { method: "POST" });
+            const out = await res.json();
+            document.getElementById("result").textContent = res.ok
+              ? `✅ Payment ${out.status}! Thanks ${out.name || ""}`
+              : `❌ ${out.error}`;
+          },
+          onError: (err) => {
+            document.getElementById("result").textContent = "❌ " + err;
+          },
+        }).render("#paypal-buttons");
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
+</body>
+</html>
