@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SplitSnap - bill</title>
+  <style>
+    body { font-family: system-ui; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    td { padding: 6px 0; border-bottom: 1px solid #eee; }
+    td:last-child { text-align: right; }
+    .muted { color: #666; }
+    #link { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; margin-bottom: 8px; }
+    #copy { width: 100%; padding: 12px; font: inherit; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>SplitSnap</h1>
+  <p id="status" class="muted">Loading bill...</p>
+  <div id="bill"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money = (c) => "$" + (c / 100).toFixed(2);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // The bill id is the last part of the URL: /b/9f2c41ab -> "9f2c41ab"
+    const billId = location.pathname.split("/").pop();
+
+    async function load() {
+      try {
+        const res = await fetch("/api/bills/" + encodeURIComponent(billId));
+        const b = await res.json();
+        if (!res.ok) throw new Error(b.error);
+
+        const subtotal = b.items.reduce((s, i) => s + i.priceCents, 0);
+        const total = subtotal + b.taxCents + b.tipCents;
+
+        $("status").textContent = "";
+        $("bill").innerHTML = `
+          <h2>${esc(b.merchant)}</h2>
+          <p class="muted">${esc(b.hostName)} paid this bill. Tap your items to pay your share (coming soon).</p>
+          <table>
+            ${b.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${money(i.priceCents)}</td></tr>`).join("")}
+            <tr><td class="muted">Tax</td><td class="muted">${money(b.taxCents)}</td></tr>
+            <tr><td class="muted">Tip</td><td class="muted">${money(b.tipCents)}</td></tr>
+            <tr><td><b>Total</b></td><td><b>${money(total)}</b></td></tr>
+          </table>
+          <h3>Share with friends</h3>
+          <input id="link" readonly value="${esc(location.href)}" />
+          <button id="copy">Copy link</button>`;
+
+        $("copy").onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(location.href);
+            $("copy").textContent = "Copied ✓";
+          } catch {
+            // Clipboard only works on https/localhost; otherwise select the text so the user can copy it
+            $("link").select();
+            $("copy").textContent = "Press Ctrl/Cmd+C to copy";
+          }
+        };
+      } catch (err) {
+        $("status").textContent = "❌ " + err.message;
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

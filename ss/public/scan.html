@@ -10,6 +10,12 @@
     td { padding: 6px 0; border-bottom: 1px solid #eee; }
     td:last-child { text-align: right; }
     .muted { color: #666; }
+    td input { font: inherit; padding: 4px; box-sizing: border-box; }
+    input.name { width: 100%; }
+    input.price { width: 80px; text-align: right; }
+    .remove { border: none; background: none; color: #999; cursor: pointer; }
+    #hostName { width: 100%; padding: 8px; margin: 16px 0 8px; font: inherit; box-sizing: border-box; }
+    #create { width: 100%; padding: 12px; font: inherit; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -74,25 +80,114 @@
         try { r = JSON.parse(text); } catch { throw new Error(`Server returned ${res.status}: ${text.slice(0, 120)}`); }
         if (!res.ok) throw new Error(r.error);
 
-        const itemsSum = r.items.reduce((s, i) => s + i.priceCents, 0);
-        const computed = itemsSum + r.taxCents + r.tipCents;
-        const matches = r.totalCents && Math.abs(computed - r.totalCents) <= 2;
-
-        $("status").textContent = `✅ Found ${r.items.length} items at ${r.merchant}`;
-        $("out").innerHTML = `
-          <table>
-            ${r.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${money(i.priceCents)}</td></tr>`).join("")}
-            <tr><td class="muted">Tax</td><td class="muted">${money(r.taxCents)}</td></tr>
-            <tr><td class="muted">Tip</td><td class="muted">${money(r.tipCents)}</td></tr>
-            <tr><td><b>Total</b></td><td><b>${money(computed)}</b></td></tr>
-          </table>
-          <p class="muted">${matches ? "✓ Matches the receipt total" : "⚠️ Doesn't match the printed total (" + money(r.totalCents) + ") — check the items"}</p>`;
+        $("status").textContent = `✅ Found ${r.items.length} items at ${r.merchant} — check them, then create the bill`;
+        showEditor(r);
       } catch (err) {
         $("status").textContent = "❌ " + (err.name === "TimeoutError"
           ? "AI took too long — try again or use a smaller photo"
           : err.message);
         console.error(err);
       }
+    });
+
+    // ---------- Step 2: edit the receipt, then create a bill ----------
+
+    let scanned = null; // what the AI returned (used to compare with the printed total)
+
+    // "$12.50" or "12.5" -> 1250 cents (NaN if it's not a number)
+    const toCents = (s) => Math.round(parseFloat(String(s).replace(/[$,\s]/g, "")) * 100);
+
+    function itemRow(i) {
+      return `<tr class="item">
+        <td><input class="name" value="${esc(i.name)}" placeholder="Item name" /></td>
+        <td><input class="price" inputmode="decimal" value="${i.priceCents ? (i.priceCents / 100).toFixed(2) : ""}" placeholder="0.00" /></td>
+        <td><button type="button" class="remove" title="Remove item">✕</button></td>
+      </tr>`;
+    }
+
+    function showEditor(r) {
+      scanned = r;
+      $("out").innerHTML = `
+        <table id="items">${r.items.map(itemRow).join("")}</table>
+        <button type="button" id="addItem">+ Add item</button>
+        <table>
+          <tr><td>Tax</td><td><input id="tax" class="price" inputmode="decimal" value="${(r.taxCents / 100).toFixed(2)}" /></td></tr>
+          <tr><td>Tip
+                <button type="button" data-tip="15">15%</button>
+                <button type="button" data-tip="18">18%</button>
+                <button type="button" data-tip="20">20%</button></td>
+              <td><input id="tip" class="price" inputmode="decimal" value="${(r.tipCents / 100).toFixed(2)}" /></td></tr>
+          <tr><td><b>Total</b></td><td><b id="total"></b></td></tr>
+        </table>
+        <p id="check" class="muted"></p>
+        <input id="hostName" placeholder="Your name (you paid the bill)" />
+        <button type="button" id="create">Create bill &amp; get link</button>`;
+      updateTotal();
+    }
+
+    // Read whatever is currently typed in the table
+    function readForm() {
+      const items = [...document.querySelectorAll("#items .item")].map((row) => ({
+        name: row.querySelector(".name").value.trim(),
+        priceCents: toCents(row.querySelector(".price").value),
+      }));
+      return {
+        hostName: $("hostName").value.trim(),
+        merchant: scanned.merchant,
+        items,
+        taxCents: toCents($("tax").value) || 0,
+        tipCents: toCents($("tip").value) || 0,
+      };
+    }
+
+    const subtotalOf = (items) => items.reduce((s, i) => s + (i.priceCents || 0), 0);
+
+    function updateTotal() {
+      const b = readForm();
+      const subtotal = subtotalOf(b.items);
+      $("total").textContent = money(subtotal + b.taxCents + b.tipCents);
+      // Compare items + tax (+ any tip printed on the receipt) with the printed total
+      if (scanned.totalCents) {
+        const ok = Math.abs(subtotal + b.taxCents + scanned.tipCents - scanned.totalCents) <= 2;
+        $("check").textContent = ok
+          ? "✓ Items + tax match the receipt"
+          : "⚠️ Items + tax don't match the printed total (" + money(scanned.totalCents) + ") — check the items";
+      }
+    }
+
+    async function createBill(btn) {
+      const bill = readForm();
+      if (!bill.hostName) { $("check").textContent = "❌ Enter your name first"; return; }
+      btn.disabled = true;
+      btn.textContent = "Creating...";
+      try {
+        const res = await fetch("/api/bills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bill),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        location.href = "/b/" + data.id; // go to the shareable bill page
+      } catch (err) {
+        $("check").textContent = "❌ " + err.message;
+        btn.disabled = false;
+        btn.textContent = "Create bill & get link";
+      }
+    }
+
+    // One listener for everything inside the editor (works for rows added later too)
+    $("out").addEventListener("input", updateTotal);
+    $("out").addEventListener("click", (e) => {
+      const t = e.target;
+      if (t.classList.contains("remove")) { t.closest("tr").remove(); updateTotal(); }
+      if (t.id === "addItem") { $("items").insertAdjacentHTML("beforeend", itemRow({ name: "", priceCents: 0 })); }
+      if (t.dataset.tip) {
+        const tipCents = Math.round(subtotalOf(readForm().items) * Number(t.dataset.tip) / 100);
+        $("tip").value = (tipCents / 100).toFixed(2);
+        updateTotal();
+      }
+      if (t.id === "create") createBill(t);
     });
   </script>
 </body>
