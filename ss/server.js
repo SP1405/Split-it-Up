@@ -2,14 +2,27 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const { createOrder, captureOrder } = require("./lib/paypal");
+const { scanReceipt } = require("./lib/ai");
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10mb" })); // receipt photos are big
 app.use(express.static(path.join(__dirname, "public")));
 
-// The Client ID is public (it's meant to be in the browser). The Secret never leaves the server.
 app.get("/api/config", (req, res) => {
   res.json({ clientId: process.env.PAYPAL_CLIENT_ID });
+});
+
+// AI: photo in, itemized receipt out
+app.post("/api/scan", async (req, res) => {
+  try {
+    const { image, mimeType } = req.body;
+    if (!image) return res.status(400).json({ error: "No image sent" });
+    const receipt = await scanReceipt(image, mimeType || "image/jpeg");
+    res.json(receipt);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/orders", async (req, res) => {

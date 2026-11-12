@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SplitSnap - scan a receipt</title>
+  <style>
+    body { font-family: system-ui; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    td { padding: 6px 0; border-bottom: 1px solid #eee; }
+    td:last-child { text-align: right; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>SplitSnap</h1>
+  <p>Snap or upload a receipt:</p>
+  <input type="file" id="photo" accept="image/*" capture="environment" />
+  <p id="status" class="muted"></p>
+  <div id="out"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const money = (c) => "$" + (c / 100).toFixed(2);
+    // Escape text from the AI before putting it in the page
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // Read the raw file as base64 (fallback for HEIC etc. that the browser can't draw)
+    function rawBase64(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result.split(",")[1]);
+        r.onerror = () => reject(new Error("Could not read the file"));
+        r.readAsDataURL(file);
+      });
+    }
+
+    // Shrink big photos to a JPEG. If the browser can't open the image, fall back to the raw file.
+    function prepare(file, max = 1600) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve({ image: canvas.toDataURL("image/jpeg", 0.85).split(",")[1], mimeType: "image/jpeg" });
+        };
+        img.onerror = () => {
+          rawBase64(file)
+            .then((image) => resolve({ image, mimeType: file.type || "image/heic" }))
+            .catch(reject); // pass errors on so the page shows them instead of hanging
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    $("photo").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      $("out").innerHTML = "";
+      try {
+        $("status").textContent = "🤖 Reading your receipt...";
+        const payload = await prepare(file);
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(60000), // give up after 60s instead of spinning forever
+        });
+        const text = await res.text();
+        let r;
+        try { r = JSON.parse(text); } catch { throw new Error(`Server returned ${res.status}: ${text.slice(0, 120)}`); }
+        if (!res.ok) throw new Error(r.error);
+
+        const itemsSum = r.items.reduce((s, i) => s + i.priceCents, 0);
+        const computed = itemsSum + r.taxCents + r.tipCents;
+        const matches = r.totalCents && Math.abs(computed - r.totalCents) <= 2;
+
+        $("status").textContent = `✅ Found ${r.items.length} items at ${r.merchant}`;
+        $("out").innerHTML = `
+          <table>
+            ${r.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${money(i.priceCents)}</td></tr>`).join("")}
+            <tr><td class="muted">Tax</td><td class="muted">${money(r.taxCents)}</td></tr>
+            <tr><td class="muted">Tip</td><td class="muted">${money(r.tipCents)}</td></tr>
+            <tr><td><b>Total</b></td><td><b>${money(computed)}</b></td></tr>
+          </table>
+          <p class="muted">${matches ? "✓ Matches the receipt total" : "⚠️ Doesn't match the printed total (" + money(r.totalCents) + ") — check the items"}</p>`;
+      } catch (err) {
+        $("status").textContent = "❌ " + (err.name === "TimeoutError"
+          ? "AI took too long — try again or use a smaller photo"
+          : err.message);
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>
