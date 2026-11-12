@@ -4,15 +4,14 @@ const express = require("express");
 const { createOrder, captureOrder } = require("./lib/paypal");
 const { scanReceipt } = require("./lib/ai");
 const crypto = require("crypto");
-const { getBill, saveBill } = require("./lib/db");
+const { getBill, saveBill, listBills } = require("./lib/db");
 const { priceClaims } = require("./lib/split");
 
 
 
 const app = express();
 app.use(express.json({ limit: "10mb" })); // receipt photos are big
-// Home page -> the scan page (the wallet design will replace this later)
-app.get("/", (req, res) => res.redirect("/scan.html"));
+// Home page is the wallet (public/index.html)
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/config", (req, res) => {
@@ -36,6 +35,11 @@ app.post("/api/scan", async (req, res) => {
 
 // Money is always whole cents, never negative, max $10,000
 const isCents = (n) => Number.isInteger(n) && n >= 0 && n <= 1000000;
+
+// Wallet home screen: a short summary of every saved bill
+app.get("/api/bills", (req, res) => {
+  res.json(listBills());
+});
 
 // Host creates a bill from the (edited) scanned receipt
 app.post("/api/bills", (req, res) => {
@@ -76,7 +80,15 @@ app.get("/api/bills/:id", (req, res) => {
   const bill = getBill(req.params.id);
   if (!bill) return res.status(404).json({ error: "Bill not found" });
   const { pending, ...publicBill } = bill; // don't send unfinished orders to the browser
-  res.json(publicBill);
+  const itemsCents = bill.items.reduce((s, i) => s + i.priceCents, 0);
+  res.json({
+    ...publicBill,
+    totalCents: itemsCents + bill.taxCents + bill.tipCents,
+    // payments going through right now (between PayPal approval and capture) — the host dashboard shows these
+    paying: Object.values(pending || {})
+      .filter((o) => o.capturing)
+      .map((o) => ({ name: o.name, claims: o.claims, totalCents: o.totalCents })),
+  });
 });
 
 // ---------- Paying your share (PayPal / Venmo) ----------
@@ -137,7 +149,11 @@ app.post("/api/bills/:id/orders/:orderId/capture", async (req, res) => {
   order.capturing = true; // hold these items while we talk to PayPal
   try {
     const data = await captureOrder(orderId);
-    if (data.status !== "COMPLETED") throw new Error("Payment not completed (" + data.status + ")");
+    // Double-check PayPal took exactly this person's share before marking anything paid
+    const captured = data.purchase_units?.[0]?.payments?.captures?.[0];
+    const paidCents = Math.round(Number(captured?.amount?.value) * 100);
+    if (data.status !== "COMPLETED" || paidCents !== order.totalCents)
+      throw new Error("Payment not completed (" + data.status + ")");
 
     // Only now, after PayPal says COMPLETED, do we record the payment
     bill.payments.push({
@@ -149,17 +165,22 @@ app.post("/api/bills/:id/orders/:orderId/capture", async (req, res) => {
     });
     delete bill.pending[orderId];
     saveBill(bill);
-    res.json({ status: "COMPLETED", totalCents: order.totalCents });
+    res.json({ status: "COMPLETED", name: order.name, totalCents: order.totalCents });
   } catch (err) {
     order.capturing = false;
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "The payment didn't go through, and you haven't been charged. Please try again." });
   }
 });
 
 // The shareable link: /b/9f2c41ab shows bill.html
 app.get("/b/:id", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "bill.html"));
+});
+
+// The host's dashboard for a bill: who's paid, live
+app.get("/b/:id/host", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "host.html"));
 });
 
 

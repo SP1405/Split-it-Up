@@ -1,36 +1,67 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Split It Up - scan a receipt</title>
-  <style>
-    body { font-family: system-ui; max-width: 480px; margin: 40px auto; padding: 0 16px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    td { padding: 6px 0; border-bottom: 1px solid #eee; }
-    td:last-child { text-align: right; }
-    .muted { color: #666; }
-    td input { font: inherit; padding: 4px; box-sizing: border-box; }
-    input.name { width: 100%; }
-    input.price { width: 80px; text-align: right; }
-    .remove { border: none; background: none; color: #999; cursor: pointer; }
-    #hostName { width: 100%; padding: 8px; margin: 16px 0 8px; font: inherit; box-sizing: border-box; }
-    #create { width: 100%; padding: 12px; font: inherit; font-weight: 600; }
-  </style>
+  <title>Split It Up Scan</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Inter:wght@400;500;600;700&family=Libre+Barcode+39+Text&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.3.2/dist/ag-grid-community.min.js"></script>
 </head>
 <body>
-  <h1>Split It Up</h1>
-  <p>Snap or upload a receipt:</p>
-  <input type="file" id="photo" accept="image/*" capture="environment" />
-  <p id="status" class="muted"></p>
-  <div id="out"></div>
+  <main class="page">
+    <header class="app-top">
+      <p class="wordmark">Split It Up</p>
+      <nav id="tabs"></nav>
+    </header>
 
+    <div class="intro">
+      <h1 id="title">Snap it!</h1>
+      <p class="muted">Take a photo of the receipt. We'll read every line for you.</p>
+    </div>
+
+    <div class="printer" id="printer">
+      <div class="printer__bar">
+        <span class="printer__name">Split It Up · receipt reader</span>
+        <span class="printer__led" aria-hidden="true"></span>
+      </div>
+
+      <label class="drop" id="drop" for="file">
+        <div id="drop-art">
+          <svg class="drop__doodle" viewBox="0 0 100 100" aria-hidden="true" fill="none" stroke="#1C1C1E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 34 Q14 27 21 27 H33 L39 18 H61 L67 27 H79 Q86 27 86 34 V73 Q86 80 79 80 H21 Q14 80 14 73 Z"/>
+            <circle cx="50" cy="53" r="15"/><circle cx="50" cy="53" r="7" fill="#BFE3FF"/>
+            <path d="M74 37 h4"/><path d="M90 14 l3 -6 M95 22 l6 -2 M84 10 l-1 -6"/>
+          </svg>
+        </div>
+        <p class="drop__title">Drop a receipt photo here</p>
+        <div class="drop__actions">
+          <button type="button" class="btn btn--sky" id="snap">Take photo</button>
+          <button type="button" class="btn" id="choose">Choose file</button>
+        </div>
+        <small>JPG, PNG or HEIC · we shrink big photos first</small>
+      </label>
+      <input type="file" id="camera" accept="image/*" capture="environment" hidden />
+      <input type="file" id="file" accept="image/*" hidden />
+
+      <div class="printer__slot" aria-hidden="true"></div>
+    </div>
+
+    <div class="printout" id="printout" aria-live="polite"></div>
+    <div class="scan-status" id="status" role="status"></div>
+  </main>
+
+  <script src="/ui.js"></script>
   <script>
+    const S = window.SplitItUp;
     const $ = (id) => document.getElementById(id);
-    const money = (c) => "$" + (c / 100).toFixed(2);
-    // Escape text from the AI before putting it in the page
-    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    S.confetti({ count: 34, seed: 11 });
+    S.bouncy($("title"));
+    S.tabs($("tabs"), "scan");
 
+    // ---------- photo prep (unchanged logic) ----------
     // Read the raw file as base64 (fallback for HEIC etc. that the browser can't draw)
     function rawBase64(file) {
       return new Promise((resolve, reject) => {
@@ -62,12 +93,40 @@
       });
     }
 
-    $("photo").addEventListener("change", async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      $("out").innerHTML = "";
+    // ---------- picking a photo ----------
+    $("snap").onclick = (e) => { e.preventDefault(); $("camera").click(); };
+    $("choose").onclick = (e) => { e.preventDefault(); $("file").click(); };
+    $("camera").onchange = (e) => handle(e.target.files[0]);
+    $("file").onchange = (e) => handle(e.target.files[0]);
+
+    const drop = $("drop");
+    ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("is-over"); }));
+    ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("is-over"); }));
+    drop.addEventListener("drop", (e) => handle(e.dataTransfer.files[0]));
+
+    function showPolaroid(file) {
+      const url = URL.createObjectURL(file);
+      $("drop-art").innerHTML = `<figure class="polaroid"><img alt="Your receipt photo" src="${url}"
+        onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'polaroid__ph',textContent:'📄',style:'width:150px;height:150px;display:grid;place-items:center;font-size:3rem;background:#F2F2F7'}))" />
+        <figcaption>${S.esc(file.name || "receipt")}</figcaption></figure>`;
+      document.querySelector(".drop__title").textContent = "Got it! Reading…";
+    }
+
+    function setStatus(html) { $("status").innerHTML = html; }
+    const warn = (msg) => `<div class="warning"><div class="star-tag star-tag--xs star-tag--pink"><span>!</span></div>${S.esc(msg)}</div>`;
+
+    // ---------- scan ----------
+    let busy = false;
+    async function handle(file) {
+      if (!file || busy) return;
+      if (file.type && !file.type.startsWith("image/")) return setStatus(warn("That's not a photo — try a JPG or PNG"));
+      busy = true;
+      showPolaroid(file);
+      $("printer").classList.add("is-busy");
+      setStatus("");
+      printSkeleton();
+
       try {
-        $("status").textContent = "🤖 Reading your receipt...";
         const payload = await prepare(file);
         const res = await fetch("/api/scan", {
           method: "POST",
@@ -79,116 +138,168 @@
         let r;
         try { r = JSON.parse(text); } catch { throw new Error(`Server returned ${res.status}: ${text.slice(0, 120)}`); }
         if (!res.ok) throw new Error(r.error);
-
-        $("status").textContent = `✅ Found ${r.items.length} items at ${r.merchant} — check them, then create the bill`;
-        showEditor(r);
+        printResult(r);
+        document.querySelector(".drop__title").textContent = "Scan another?";
       } catch (err) {
-        $("status").textContent = "❌ " + (err.name === "TimeoutError"
-          ? "AI took too long — try again or use a smaller photo"
-          : err.message);
         console.error(err);
+        $("printout").innerHTML = "";
+        document.querySelector(".drop__title").textContent = "Try another photo";
+        setStatus(warn(err.name === "TimeoutError" ? "AI took too long — try again or use a smaller photo" : err.message));
+      } finally {
+        busy = false;
+        $("printer").classList.remove("is-busy");
+        $("camera").value = $("file").value = "";
       }
-    });
-
-    // ---------- Step 2: edit the receipt, then create a bill ----------
-
-    let scanned = null; // what the AI returned (used to compare with the printed total)
-
-    // "$12.50" or "12.5" -> 1250 cents (NaN if it's not a number)
-    const toCents = (s) => Math.round(parseFloat(String(s).replace(/[$,\s]/g, "")) * 100);
-
-    function itemRow(i) {
-      return `<tr class="item">
-        <td><input class="name" value="${esc(i.name)}" placeholder="Item name" /></td>
-        <td><input class="price" inputmode="decimal" value="${i.priceCents ? (i.priceCents / 100).toFixed(2) : ""}" placeholder="0.00" /></td>
-        <td><button type="button" class="remove" title="Remove item">✕</button></td>
-      </tr>`;
     }
 
-    function showEditor(r) {
+    // paper slowly feeding out while the AI reads
+    function printSkeleton() {
+      const out = $("printout");
+      out.className = "printout printout--slow";
+      out.innerHTML = `<div class="receipt-wrap"><article class="receipt">
+        <p class="receipt__merchant">READING…</p>
+        <p class="receipt__sub">one sec, the AI is squinting</p><hr />
+        ${Array.from({ length: 7 }, (_, i) => `<div class="skeleton-line" style="width:${[92, 70, 84, 64, 88, 58, 76][i]}%"></div>`).join("")}
+        <hr /><div class="skeleton-line" style="width:40%;margin-left:auto"></div>
+      </article></div>`;
+    }
+
+    // ---------- editable receipt ----------
+    let grid, scanned;
+
+    function printResult(r) {
       scanned = r;
-      $("out").innerHTML = `
-        <table id="items">${r.items.map(itemRow).join("")}</table>
-        <button type="button" id="addItem">+ Add item</button>
-        <table>
-          <tr><td>Tax</td><td><input id="tax" class="price" inputmode="decimal" value="${(r.taxCents / 100).toFixed(2)}" /></td></tr>
-          <tr><td>Tip
-                <button type="button" data-tip="15">15%</button>
-                <button type="button" data-tip="18">18%</button>
-                <button type="button" data-tip="20">20%</button></td>
-              <td><input id="tip" class="price" inputmode="decimal" value="${(r.tipCents / 100).toFixed(2)}" /></td></tr>
-          <tr><td><b>Total</b></td><td><b id="total"></b></td></tr>
-        </table>
-        <p id="check" class="muted"></p>
-        <input id="hostName" placeholder="Your name (you paid the bill)" />
-        <button type="button" id="create">Create bill &amp; get link</button>`;
-      updateTotal();
-    }
+      const out = $("printout");
+      out.className = "printout printout--feed";
+      out.innerHTML = `<div class="receipt-wrap" style="--tilt:-.6deg"><article class="receipt">
+        <input class="receipt-input receipt__merchant" id="merchant" aria-label="Shop name" value="${S.esc(r.merchant || "Receipt")}" />
+        <p class="receipt__sub">tap anything to fix it</p>
+        <div class="receipt__meta"><span>${S.esc(new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" }))}</span></div>
+        <hr />
+        <div id="grid" class="receipt__grid"></div>
+        <button type="button" class="btn btn--sm receipt__add" id="add">+ Add item</button>
+        <hr />
+        <div class="receipt__row"><span>ITEM COUNT:</span><span id="count"></span></div>
+        <div class="receipt__row"><span>SUBTOTAL:</span><span id="sub"></span></div>
+        <div class="receipt__row"><label for="tax">TAX:</label><input class="receipt-input" id="tax" inputmode="decimal" value="${(r.taxCents / 100).toFixed(2)}" /></div>
+        <div class="receipt__row"><label for="tip">TIP:</label><input class="receipt-input" id="tip" inputmode="decimal" value="${(r.tipCents / 100).toFixed(2)}" /></div>
+        <hr />
+        <div class="receipt__row receipt__total"><span>TOTAL:</span><span id="total"></span></div>
+        <div class="receipt__row" id="printed-row"><span>PRINTED TOTAL:</span><span>${S.money(r.totalCents)}</span></div>
+        <p class="receipt__thanks">THANK YOU FOR SPLITTING!</p>
+        <div class="receipt__barcode" aria-hidden="true">*SPLITITUP*</div>
+      </article></div>
+      <div class="scan-status" id="check" role="status"></div>
+      <div style="max-width:340px;margin:20px auto 0">
+        <label for="host" style="display:block;font-weight:600;margin-bottom:6px">Who paid the bill?</label>
+        <input class="field" id="host" placeholder="Your name" autocomplete="given-name" maxlength="40" />
+      </div>
+      <div class="scan-status" id="save-msg" role="alert"></div>
+      <div class="scan-actions" style="margin-top:18px">
+        <button class="btn btn--sky" id="save">Save to wallet</button>
+        <button class="btn" id="again">Scan another</button>
+      </div>`;
 
-    // Read whatever is currently typed in the table
-    function readForm() {
-      const items = [...document.querySelectorAll("#items .item")].map((row) => ({
-        name: row.querySelector(".name").value.trim(),
-        priceCents: toCents(row.querySelector(".price").value),
-      }));
-      return {
-        hostName: $("hostName").value.trim(),
-        merchant: scanned.merchant,
-        items,
-        taxCents: toCents($("tax").value) || 0,
-        tipCents: toCents($("tip").value) || 0,
+      grid = agGrid.createGrid($("grid"), {
+        theme: S.gridTheme(),
+        domLayout: "autoHeight",
+        singleClickEdit: true,
+        stopEditingWhenCellsLoseFocus: true,
+        getRowId: (p) => p.data.id,
+        defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+        columnDefs: [
+          { field: "name", headerName: "Item", flex: 1, editable: true, minWidth: 110, tooltipField: "name" },
+          {
+            field: "priceCents", headerName: "Amt", width: 92, editable: true, type: "rightAligned",
+            cellEditor: "agNumberCellEditor", cellEditorParams: { precision: 2, min: 0 },
+            valueGetter: (p) => p.data.priceCents / 100,
+            valueSetter: (p) => { const v = Math.round(Number(p.newValue) * 100); if (!(v >= 0)) return false; p.data.priceCents = v; return true; },
+            valueFormatter: (p) => "$" + Number(p.value).toFixed(2),
+          },
+          {
+            colId: "x", headerName: "", width: 44, cellStyle: { padding: 0, display: "grid", placeItems: "center" },
+            cellRenderer: (p) => {
+              const b = document.createElement("button");
+              b.className = "grid-x"; b.type = "button"; b.textContent = "✕";
+              b.setAttribute("aria-label", `Delete ${p.data.name}`);
+              b.onclick = () => { p.api.applyTransaction({ remove: [p.data] }); totals(); };
+              return b;
+            },
+          },
+        ],
+        rowData: r.items.map((i) => ({ ...i })),
+        onCellValueChanged: totals,
+      });
+
+      let next = r.items.length + 1;
+      $("add").onclick = () => {
+        const row = { id: "new" + next++, name: "New item", priceCents: 0 };
+        grid.applyTransaction({ add: [row] });
+        grid.startEditingCell({ rowIndex: grid.getDisplayedRowCount() - 1, colKey: "name" });
+        totals();
       };
+      $("tax").oninput = $("tip").oninput = totals;
+      $("again").onclick = () => { $("printout").innerHTML = ""; setStatus(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      $("save").onclick = save;
+      // remember the host's name on this device
+      try { $("host").value = localStorage.getItem("ss-host") || ""; } catch {}
+      $("host").oninput = () => { $("save-msg").innerHTML = ""; try { localStorage.setItem("ss-host", $("host").value.trim()); } catch {} };
+      totals();
+      setTimeout(() => out.querySelector(".receipt-wrap").scrollIntoView({ behavior: "smooth", block: "start" }), 300);
     }
 
-    const subtotalOf = (items) => items.reduce((s, i) => s + (i.priceCents || 0), 0);
+    const toCents = (s) => { const v = Math.round(parseFloat(String(s).replace(/[^0-9.]/g, "")) * 100); return v >= 0 ? v : 0; };
+    function rows() { const a = []; grid.forEachNode((n) => a.push(n.data)); return a; }
 
-    function updateTotal() {
-      const b = readForm();
-      const subtotal = subtotalOf(b.items);
-      $("total").textContent = money(subtotal + b.taxCents + b.tipCents);
-      // Compare items + tax (+ any tip printed on the receipt) with the printed total
-      if (scanned.totalCents) {
-        const ok = Math.abs(subtotal + b.taxCents + scanned.tipCents - scanned.totalCents) <= 2;
-        $("check").textContent = ok
-          ? "✓ Items + tax match the receipt"
-          : "⚠️ Items + tax don't match the printed total (" + money(scanned.totalCents) + ") — check the items";
+    function totals() {
+      const items = rows();
+      const sub = items.reduce((s, i) => s + (i.priceCents || 0), 0);
+      const total = sub + toCents($("tax").value) + toCents($("tip").value);
+      $("count").textContent = items.length;
+      $("sub").textContent = S.money(sub);
+      $("total").textContent = S.money(total);
+
+      // the AI can misread — flag it when our total doesn't match the printed one
+      const printed = scanned.totalCents;
+      $("printed-row").hidden = !printed;
+      if (!printed) return ($("check").innerHTML = "");
+      $("check").innerHTML = (Math.abs(total - printed) <= 2
+        ? `<div class="warning"><div class="star-tag star-tag--xs star-tag--green"><span>✓</span></div>Matches the printed total</div>`
+        : warn(`Doesn't add up — ${S.money(Math.abs(total - printed))} ${total > printed ? "over" : "under"} the printed total. Check the items.`));
+    }
+
+    async function save() {
+      grid.stopEditing();
+      const hostName = $("host").value.trim();
+      if (!hostName) {
+        $("save-msg").innerHTML = warn("Add your name so friends know who they're paying");
+        $("host").focus();
+        return;
       }
-    }
-
-    async function createBill(btn) {
-      const bill = readForm();
-      if (!bill.hostName) { $("check").textContent = "❌ Enter your name first"; return; }
+      const btn = $("save");
       btn.disabled = true;
-      btn.textContent = "Creating...";
+      btn.textContent = "Saving…";
       try {
         const res = await fetch("/api/bills", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(bill),
+          body: JSON.stringify({
+            hostName,
+            merchant: $("merchant").value,
+            items: rows().map(({ name, priceCents }) => ({ name, priceCents })),
+            taxCents: toCents($("tax").value),
+            tipCents: toCents($("tip").value),
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        location.href = "/b/" + data.id; // go to the shareable bill page
+        location.href = "/b/" + encodeURIComponent(data.id) + "/host"; // owner lands on their dashboard
       } catch (err) {
-        $("check").textContent = "❌ " + err.message;
+        $("save-msg").innerHTML = warn(err.message);
         btn.disabled = false;
-        btn.textContent = "Create bill & get link";
+        btn.textContent = "Save to wallet";
       }
     }
-
-    // One listener for everything inside the editor (works for rows added later too)
-    $("out").addEventListener("input", updateTotal);
-    $("out").addEventListener("click", (e) => {
-      const t = e.target;
-      if (t.classList.contains("remove")) { t.closest("tr").remove(); updateTotal(); }
-      if (t.id === "addItem") { $("items").insertAdjacentHTML("beforeend", itemRow({ name: "", priceCents: 0 })); }
-      if (t.dataset.tip) {
-        const tipCents = Math.round(subtotalOf(readForm().items) * Number(t.dataset.tip) / 100);
-        $("tip").value = (tipCents / 100).toFixed(2);
-        updateTotal();
-      }
-      if (t.id === "create") createBill(t);
-    });
   </script>
 </body>
 </html>
