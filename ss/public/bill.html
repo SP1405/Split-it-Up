@@ -1,232 +1,330 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Split It Up - bill</title>
-  <style>
-    body { font-family: system-ui; max-width: 480px; margin: 40px auto; padding: 0 16px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    td { padding: 6px 0; border-bottom: 1px solid #eee; }
-    td:last-child { text-align: right; }
-    .muted { color: #666; }
-    input[type="text"], #link { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; }
-    .item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .item .name { flex: 1; }
-    .item.done { color: #aaa; }
-    .item select { font: inherit; }
-    .paid { color: #0a7d32; }
-    #paypal-buttons { margin-top: 16px; }
-    #copy { width: 100%; padding: 12px; font: inherit; font-weight: 600; margin-top: 8px; }
-  </style>
+  <title>Split It Up Receipt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Inter:wght@400;500;600;700&family=Libre+Barcode+39+Text&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.3.2/dist/ag-grid-community.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 </head>
 <body>
-  <h1>Split It Up</h1>
-  <p id="status" class="muted">Loading bill...</p>
+  <main class="page">
+    <header class="app-top">
+      <p class="wordmark">Split It Up</p>
+    </header>
 
-  <div id="main" hidden>
-    <h2 id="merchant"></h2>
-    <p id="host" class="muted"></p>
+    <div class="intro">
+      <h1 id="title">Pick yours!</h1>
+      <p class="muted">Tap what you had. Shared something? Tap its split pill: ½, ⅓ or ¼.</p>
+    </div>
 
-    <h3>1. Who are you?</h3>
-    <input type="text" id="name" placeholder="Your name" />
+    <div id="app"></div>
+  </main>
 
-    <h3>2. Tap what you had</h3>
-    <div id="items"></div>
-
-    <h3>3. Pay your share</h3>
-    <table id="summary"></table>
-    <p id="msg"></p>
-    <div id="paypal-buttons"></div>
-
-    <h3>Who's paid</h3>
-    <p id="progress" class="muted"></p>
-    <div id="payments"></div>
-
-    <h3>Share with friends</h3>
-    <input id="link" readonly />
-    <button id="copy">Copy link</button>
-  </div>
-
+  <script src="/ui.js"></script>
   <script>
+    const S = window.SplitItUp;
     const $ = (id) => document.getElementById(id);
-    const money = (c) => "$" + (c / 100).toFixed(2);
-    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    S.confetti({ count: 34, seed: 23 });
+    S.bouncy($("title"));
 
-    const billId = location.pathname.split("/").pop(); // /b/9f2c41ab -> "9f2c41ab"
-    const UNITS = 12; // same idea as lib/split.js: each item = 12 units, so 1/2, 1/3, 1/4 add up exactly
-    const LABEL = { 1: "whole", 2: "½", 3: "⅓", 4: "¼" };
+    const UNITS = 12;                  // same maths as lib/split.js
+    const SPLITS = [1, 2, 3, 4];
+    const SPLIT_LABEL = { 1: "1", 2: "½", 3: "⅓", 4: "¼" };
+    const id = decodeURIComponent(location.pathname.split("/")[2] || "");
 
-    let bill = null;     // latest bill from the server
-    let lastPaid = "";   // used to only redraw items when payments change
-    let picked = {};     // what YOU ticked: { itemId: split }  (split 1 = whole, 2 = half, ...)
-
-    // How many units of each item are already paid for
-    function takenUnits() {
-      const taken = {};
-      for (const p of bill.payments)
-        for (const c of p.claims) taken[c.itemId] = (taken[c.itemId] || 0) + UNITS / c.split;
-      return taken;
-    }
-
-    // Draw the item list with a checkbox + "whole / ½ / ⅓ / ¼" picker
-    function renderItems() {
-      const taken = takenUnits();
-      $("items").innerHTML = bill.items.map((item) => {
-        const left = UNITS - (taken[item.id] || 0);
-        const payers = bill.payments.filter((p) => p.claims.some((c) => c.itemId === item.id)).map((p) => p.name);
-
-        // Fully paid: grey it out and say who paid
-        if (left <= 0) {
-          delete picked[item.id];
-          return `<div class="item done"><span class="name">${esc(item.name)}<br>
-            <small class="paid">Paid by ${esc(payers.join(", "))} ✅</small></span><span>${money(item.priceCents)}</span></div>`;
-        }
-
-        // Only offer shares that still fit (e.g. if half is paid, you can't take it "whole")
-        const options = [1, 2, 3, 4].filter((n) => UNITS / n <= left);
-        if (picked[item.id] && !options.includes(picked[item.id])) delete picked[item.id];
-        const chosen = picked[item.id] || options[0];
-
-        return `<label class="item">
-          <input type="checkbox" data-id="${item.id}" ${picked[item.id] ? "checked" : ""} />
-          <span class="name">${esc(item.name)}
-            ${payers.length ? `<br><small class="muted">Partly paid by ${esc(payers.join(", "))}</small>` : ""}</span>
-          <select data-id="${item.id}">
-            ${options.map((n) => `<option value="${n}" ${n === chosen ? "selected" : ""}>${LABEL[n]}</option>`).join("")}
-          </select>
-          <span>${money(item.priceCents)}</span>
-        </label>`;
-      }).join("");
-    }
-
-    // Your items + your share of tax and tip (same formula as the server; the server has the final say)
-    function renderSummary() {
-      const subtotal = bill.items.reduce((s, i) => s + i.priceCents, 0);
-      let itemsCents = 0;
-      for (const [itemId, split] of Object.entries(picked)) {
-        const item = bill.items.find((i) => i.id === itemId);
-        itemsCents += Math.round(item.priceCents / split);
-      }
-      const tax = Math.round((itemsCents / subtotal) * bill.taxCents);
-      const tip = Math.round((itemsCents / subtotal) * bill.tipCents);
-      $("summary").innerHTML = `
-        <tr><td>Your items</td><td>${money(itemsCents)}</td></tr>
-        <tr><td class="muted">Your share of tax</td><td class="muted">${money(tax)}</td></tr>
-        <tr><td class="muted">Your share of tip</td><td class="muted">${money(tip)}</td></tr>
-        <tr><td><b>You pay</b></td><td><b>${money(itemsCents + tax + tip)}</b></td></tr>`;
-    }
-
-    function renderPayments() {
-      const total = bill.items.reduce((s, i) => s + i.priceCents, 0) + bill.taxCents + bill.tipCents;
-      const collected = bill.payments.reduce((s, p) => s + p.totalCents, 0);
-      $("progress").textContent = `${bill.hostName} has collected ${money(collected)} of ${money(total)}`;
-      $("payments").innerHTML = bill.payments.length
-        ? bill.payments.map((p) => `<div class="paid">✅ ${esc(p.name)} paid ${money(p.totalCents)}</div>`).join("")
-        : `<p class="muted">Nobody yet — be the first!</p>`;
-    }
-
-    // Get the latest bill. Called on load and every 3 seconds so everyone sees payments live.
-    async function refresh() {
-      const res = await fetch("/api/bills/" + encodeURIComponent(billId));
-      const b = await res.json();
-      if (!res.ok) throw new Error(b.error);
-      bill = b;
-      const paidNow = JSON.stringify(bill.payments);
-      if (paidNow !== lastPaid) { // only redraw when something changed, so your ticks aren't disturbed
-        lastPaid = paidNow;
-        renderItems();
-        renderSummary();
-        renderPayments();
-      }
-    }
-
-    // Tick / untick an item, or change whole / ½ / ⅓ / ¼
-    $("items").addEventListener("change", (e) => {
-      const id = e.target.dataset.id;
-      if (!id) return;
-      const row = e.target.closest(".item");
-      const box = row.querySelector("input[type=checkbox]");
-      if (e.target.tagName === "SELECT") box.checked = true; // picking a share ticks the item
-      if (box.checked) picked[id] = Number(row.querySelector("select").value);
-      else delete picked[id];
-      renderSummary();
-    });
-
-    // ---------- PayPal / Venmo buttons ----------
-    async function loadPayPal() {
-      const { clientId } = await (await fetch("/api/config")).json();
-      const script = document.createElement("script");
-      // enable-funding=venmo shows the Venmo button; buyer-country=US is needed to see it in sandbox
-      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons&enable-funding=venmo&buyer-country=US`;
-      script.onerror = () => { $("msg").textContent = "❌ PayPal couldn't load (turn off ad blockers / Brave Shields)"; };
-      script.onload = () => {
-        paypal.Buttons({
-          // Before the popup opens: make sure we have a name and at least one item
-          onClick: (data, actions) => {
-            $("msg").textContent = "";
-            if (!$("name").value.trim()) { $("msg").textContent = "❌ Enter your name first"; return actions.reject(); }
-            if (!Object.keys(picked).length) { $("msg").textContent = "❌ Tick at least one item"; return actions.reject(); }
-            return actions.resolve();
-          },
-          // Ask OUR server to create the order. We only send name + which items; the server sets the price.
-          createOrder: async () => {
-            const claims = Object.entries(picked).map(([itemId, split]) => ({ itemId, split }));
-            const res = await fetch(`/api/bills/${billId}/orders`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: $("name").value.trim(), claims }),
-            });
-            const data = await res.json();
-            if (!res.ok) { $("msg").textContent = "❌ " + data.error; throw new Error(data.error); }
-            return data.id;
-          },
-          // The friend approved in PayPal/Venmo: ask our server to capture (actually take) the money
-          onApprove: async (data) => {
-            $("msg").textContent = "Finishing payment...";
-            const res = await fetch(`/api/bills/${billId}/orders/${data.orderID}/capture`, { method: "POST" });
-            const out = await res.json();
-            if (!res.ok) { $("msg").textContent = "❌ " + out.error; return; }
-            $("msg").textContent = `✅ Paid ${money(out.totalCents)} — thanks ${$("name").value.trim()}!`;
-            picked = {};
-            lastPaid = ""; // force a redraw
-            await refresh();
-          },
-          onError: (err) => {
-            console.error(err);
-            if (!$("msg").textContent.startsWith("❌")) $("msg").textContent = "❌ Payment failed — please try again";
-          },
-        }).render("#paypal-buttons");
-      };
-      document.head.appendChild(script);
-    }
-
-    // ---------- Share link ----------
-    $("link").value = location.href;
-    $("copy").onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(location.href);
-        $("copy").textContent = "Copied ✓";
-      } catch {
-        $("link").select(); // clipboard only works on https/localhost
-        $("copy").textContent = "Press Ctrl/Cmd+C to copy";
-      }
+    const DEMO = {
+      id: "a8f3k2", merchant: "Taco Palace", createdAt: "2026-11-10T20:30:00",
+      items: [
+        { id: "i1", name: "Carne asada burrito", priceCents: 1450 },
+        { id: "i2", name: "Fish tacos (3)", priceCents: 1325 },
+        { id: "i3", name: "Chips + guac", priceCents: 895 },
+        { id: "i4", name: "Horchata", priceCents: 450 },
+        { id: "i5", name: "Horchata", priceCents: 450 },
+        { id: "i6", name: "Churros", priceCents: 650 },
+      ],
+      taxCents: 455, tipCents: 900, totalCents: 6575,
+      payments: [{ name: "Sam Lee", totalCents: 2046, claims: [{ itemId: "i1", split: 1 }, { itemId: "i3", split: 2 }] }],
     };
 
-    // ---------- Start ----------
-    (async () => {
+    async function load() {
+      if (new URLSearchParams(location.search).has("demo")) return DEMO;
+      const res = await fetch("/api/bills/" + encodeURIComponent(id));
+      if (!res.ok) throw new Error(res.status === 404 ? "We couldn't find this receipt." : "Couldn't load the receipt.");
+      return res.json();
+    }
+
+    const DEMO_MODE = new URLSearchParams(location.search).has("demo");
+    let current = null;   // the bill on screen
+    let grid = null;
+    let paying = false;   // PayPal popup open: don't re-render under it
+    let flash = "";       // success message shown after a re-render
+
+    // remember the friend's name on this device
+    const savedName = () => { try { return localStorage.getItem("ss-name") || ""; } catch { return ""; } };
+    const saveName = (v) => { try { localStorage.setItem("ss-name", v); } catch {} };
+
+    // PayPal JS SDK, loaded once
+    let sdk;
+    function loadSdk() {
+      return (sdk ||= (async () => {
+        const { clientId } = await (await fetch("/api/config")).json();
+        if (!clientId) throw new Error("PayPal isn't set up yet (PAYPAL_CLIENT_ID is missing in .env)");
+        await new Promise((ok, bad) => {
+          const s = document.createElement("script");
+          // enable-funding=venmo shows the Venmo button; buyer-country=US is needed to see it in sandbox.
+          // disable-funding hides Pay Later + card so friends just see PayPal and Venmo.
+          s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&components=buttons&enable-funding=venmo&disable-funding=paylater,card&buyer-country=US`;
+          s.onload = ok;
+          s.onerror = () => bad(new Error("Couldn't load PayPal — check your connection"));
+          document.head.appendChild(s);
+        });
+      })());
+    }
+
+    // pick up other friends' payments while this page is open
+    setInterval(async () => {
+      if (!current || DEMO_MODE || paying || document.hidden) return;
       try {
-        await refresh();
-        $("status").textContent = "";
-        $("merchant").textContent = bill.merchant;
-        $("host").textContent = `${bill.hostName} paid this bill. Tick what you had and pay your share.`;
-        $("main").hidden = false;
-        loadPayPal();
-        setInterval(() => refresh().catch(console.error), 3000); // live updates
-      } catch (err) {
-        $("status").textContent = "❌ " + err.message;
+        const res = await fetch("/api/bills/" + encodeURIComponent(id));
+        if (!res.ok) return;
+        const bill = await res.json();
+        if (bill.payments.length === current.payments.length) return;
+        if (grid && grid.getSelectedRows().length === 0) render(bill); // safe to redraw
+        else { current.payments = bill.payments; drawPaid(bill); }    // keep their picks; server re-checks on pay
+      } catch {}
+    }, 5000);
+
+    function drawPaid(bill) {
+      const pays = bill.payments || [];
+      $("paid").innerHTML = pays.length
+        ? pays.slice().reverse().map((p) => `<div class="widget"><div class="widget__icon">💸</div>
+            <div class="widget__body"><b>${S.esc(p.name || "Someone")} paid</b><p>${S.money(p.totalCents)}</p></div></div>`).join("")
+        : `<p class="muted" style="margin:0;font-size:.92rem">No one yet. Be the first!</p>`;
+    }
+
+    load().then(render).catch((err) => {
+      $("app").innerHTML = `<div style="display:grid;justify-items:center;gap:16px">
+        <div class="warning"><div class="star-tag star-tag--xs star-tag--pink"><span>!</span></div>${S.esc(err.message)}</div>
+        <a class="btn btn--sky" href="/">Back to wallet</a></div>`;
+    });
+
+    function render(bill) {
+      current = bill;
+      document.title = `${bill.merchant} · Split It Up`;
+      const subtotal = bill.items.reduce((s, i) => s + i.priceCents, 0);
+      const host = bill.hostName || "the host";
+
+      // how much of each item is already paid for
+      const taken = {};
+      for (const p of bill.payments || []) for (const c of p.claims) taken[c.itemId] = (taken[c.itemId] || 0) + UNITS / c.split;
+      const allowed = (it) => SPLITS.filter((s) => (taken[it.id] || 0) + UNITS / s <= UNITS);
+
+      const rowData = bill.items.map((it) => ({ ...it, taken: taken[it.id] || 0, split: allowed(it)[0] || 1 }));
+      const shareUrl = `${location.origin}/b/${encodeURIComponent(bill.id)}`;
+
+      $("app").innerHTML = `<div class="bill-layout">
+        <div id="receipt"></div>
+        <aside class="bill-side">
+          <div class="card">
+            <label for="name"><h3 style="margin-bottom:8px">Who are you?</h3></label>
+            <input class="field" id="name" placeholder="Your name" autocomplete="given-name" />
+            <div class="bill-total" style="margin-top:18px">
+              <div class="star-tag star-tag--lg" id="burst"><span><small>your total</small><span id="you">$0.00</span></span></div>
+              <dl>
+                <div><dt>Items</dt><dd id="you-items">$0.00</dd></div>
+                <div><dt>Tax share</dt><dd id="you-tax">$0.00</dd></div>
+                <div><dt>Tip share</dt><dd id="you-tip">$0.00</dd></div>
+              </dl>
+            </div>
+            <div class="card__inner" style="margin-top:16px">
+              <div id="flash"></div>
+              <p id="pay-hint" class="muted" style="font-size:.85rem;margin:0 0 10px;text-align:center">Pick your items, then pay ${S.esc(host)} with PayPal or Venmo.</p>
+              <div id="pay-msg" style="margin-bottom:10px" hidden></div>
+              <div id="pp" style="min-height:48px"></div>
+            </div>
+          </div>
+
+          <div>
+            <span class="label" style="--r:-2deg;margin-bottom:12px">Who's paid</span>
+            <div id="paid" style="display:grid;gap:10px;margin-top:12px"></div>
+          </div>
+
+          <div class="ticket">
+            <div class="ticket__main">
+              <h3 style="margin-bottom:6px">Share with friends</h3>
+              <p class="mono" style="margin:0 0 12px;font-size:.76rem;overflow-wrap:anywhere">${S.esc(shareUrl.replace(/^https?:\/\//, ""))}</p>
+              <button class="btn btn--sm" id="copy">Copy link</button>
+            </div>
+            <div class="ticket__stub"><div class="qr" id="qr" role="img" aria-label="QR code for this receipt"></div></div>
+          </div>
+        </aside>
+      </div>`;
+
+      S.renderReceipt($("receipt"), bill, { tableSlot: "grid", tilt: -0.8 });
+
+      drawPaid(bill);
+      $("name").value = savedName();
+      $("name").oninput = () => { saveName($("name").value.trim()); hideMsg(); };
+      if (flash) { $("flash").innerHTML = flash; flash = ""; }
+
+      // share
+      $("copy").onclick = async () => {
+        try { await navigator.clipboard.writeText(shareUrl); $("copy").textContent = "Copied ✓"; }
+        catch { prompt("Copy this link:", shareUrl); }
+        setTimeout(() => ($("copy").textContent = "Copy link"), 1800);
+      };
+      if (window.qrcode) {
+        const q = qrcode(0, "M");
+        q.addData(shareUrl);
+        q.make();
+        $("qr").innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
       }
-    })();
+
+      // ---------- the selectable receipt ----------
+      grid = agGrid.createGrid($("grid"), {
+        theme: S.gridTheme(),
+        domLayout: "autoHeight",
+        getRowId: (p) => p.data.id,
+        rowSelection: {
+          mode: "multiRow",
+          checkboxes: true,
+          headerCheckbox: false,
+          enableClickSelection: true,
+          isRowSelectable: (n) => n.data.taken < UNITS,
+        },
+        rowClassRules: { "row-taken": (p) => p.data.taken >= UNITS },
+        defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+        columnDefs: [
+          {
+            field: "name", headerName: "Item", flex: 1, minWidth: 90,
+            tooltipValueGetter: (p) => p.value + (p.data.taken > 0 && p.data.taken < UNITS ? " (part already paid)" : ""),
+          },
+          {
+            colId: "split", headerName: "Split", width: 62, cellStyle: { display: "grid", placeItems: "center", padding: 0 },
+            cellRenderer: (p) => {
+              const opts = allowed(p.data);
+              if (!opts.length) return '<span class="paid-stamp" style="margin:0">PAID</span>';
+              const b = document.createElement("button");
+              b.type = "button";
+              b.className = "split-pill" + (p.data.split > 1 ? " is-shared" : "");
+              b.textContent = SPLIT_LABEL[p.data.split];
+              b.disabled = !opts.length;
+              b.setAttribute("aria-label", `Split ${p.data.name}: ${p.data.split === 1 ? "whole" : "1/" + p.data.split}. Tap to change.`);
+              b.onclick = (e) => {
+                e.stopPropagation(); // don't toggle the row too
+                p.data.split = opts[(opts.indexOf(p.data.split) + 1) % opts.length];
+                p.node.setSelected(true);
+                p.api.refreshCells({ rowNodes: [p.node], force: true });
+                update();
+              };
+              return b;
+            },
+          },
+          {
+            colId: "amt", headerName: "Amt", width: 80, type: "rightAligned",
+            valueGetter: (p) => Math.round(p.data.priceCents / p.data.split),
+            valueFormatter: (p) => S.money(p.value),
+          },
+        ],
+        rowData,
+        onSelectionChanged: update,
+      });
+
+      function update() {
+        const picked = grid.getSelectedRows();
+        const items = picked.reduce((s, r) => s + Math.round(r.priceCents / r.split), 0);
+        const tax = subtotal ? Math.round((items / subtotal) * bill.taxCents) : 0;
+        const tip = subtotal ? Math.round((items / subtotal) * bill.tipCents) : 0;
+        const total = items + tax + tip;
+        $("you").textContent = S.money(total);
+        $("you-items").textContent = S.money(items);
+        $("you-tax").textContent = S.money(tax);
+        $("you-tip").textContent = S.money(tip);
+        $("pay-hint").textContent = picked.length
+          ? `Pay ${S.money(total)} to ${host} with PayPal or Venmo.`
+          : `Pick your items, then pay ${host} with PayPal or Venmo.`;
+        hideMsg();
+        // little wiggle when the total changes
+        const burst = $("burst");
+        burst.animate([{ transform: "scale(1)" }, { transform: "scale(1.08) rotate(4deg)" }, { transform: "scale(1)" }],
+          { duration: 320, easing: "cubic-bezier(.34,1.56,.64,1)" });
+      }
+
+      mountPay(bill);
+    }
+
+    // ---------- paying ----------
+    const warnHTML = (msg) => `<div class="warning" style="width:100%"><div class="star-tag star-tag--xs star-tag--pink"><span>!</span></div><span>${S.esc(msg)}</span></div>`;
+    function showMsg(msg) { const m = $("pay-msg"); if (!m) return; m.innerHTML = warnHTML(msg); m.hidden = false; }
+    function hideMsg() { const m = $("pay-msg"); if (m) m.hidden = true; }
+
+    function mountPay(bill) {
+      if (DEMO_MODE) {
+        $("pp").innerHTML = `<p class="muted" style="margin:0;font-size:.85rem;text-align:center">Demo receipt: open a real one to pay.</p>`;
+        return;
+      }
+      const allPaid = grid && (() => { let any = false; grid.forEachNode((n) => { if (n.data.taken < UNITS) any = true; }); return !any; })();
+      if (allPaid) {
+        $("pay-hint").textContent = "Everything on this receipt is paid. 🎉";
+        $("pp").innerHTML = "";
+        return;
+      }
+
+      let lastError = "";
+      loadSdk()
+        .then(() => {
+          $("pp").innerHTML = "";
+          return paypal.Buttons({
+            style: { shape: "pill", label: "pay", height: 46 },
+            // check name + items before the popup opens
+            onClick: (data, actions) => {
+              const name = $("name").value.trim();
+              if (!name) { showMsg("Add your name first so the host knows who paid"); $("name").focus(); return actions.reject(); }
+              if (!grid.getSelectedRows().length) { showMsg("Pick at least one item"); return actions.reject(); }
+              hideMsg();
+              paying = true;
+              return actions.resolve();
+            },
+            createOrder: async () => {
+              lastError = "";
+              const res = await fetch(`/api/bills/${encodeURIComponent(bill.id)}/orders`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: $("name").value.trim(),
+                  claims: grid.getSelectedRows().map((r) => ({ itemId: r.id, split: r.split })),
+                }),
+              });
+              const d = await res.json();
+              if (!res.ok) { lastError = d.error; throw new Error(d.error); }
+              return d.id;
+            },
+            onApprove: async (data) => {
+              const res = await fetch(`/api/bills/${encodeURIComponent(bill.id)}/orders/${encodeURIComponent(data.orderID)}/capture`, { method: "POST" });
+              const d = await res.json();
+              paying = false;
+              if (!res.ok) { lastError = d.error; throw new Error(d.error); }
+              flash = `<div class="warning" style="width:100%;background:var(--mint);margin-bottom:12px">
+                <div class="star-tag star-tag--xs star-tag--green"><span>✓</span></div>
+                <span>Paid ${S.money(d.totalCents)}! Thanks, ${S.esc(d.name)}. ${S.esc(bill.hostName || "The host")} can see it.</span></div>`;
+              const fresh = await (await fetch("/api/bills/" + encodeURIComponent(bill.id))).json();
+              render(fresh);
+            },
+            onCancel: () => { paying = false; showMsg("Payment cancelled. Nothing was charged."); },
+            onError: (err) => {
+              paying = false;
+              console.error(err);
+              showMsg(lastError || "Something went wrong with PayPal. Please try again.");
+            },
+          }).render("#pp");
+        })
+        .catch((err) => { $("pp").innerHTML = ""; showMsg(err.message); });
+    }
   </script>
 </body>
 </html>

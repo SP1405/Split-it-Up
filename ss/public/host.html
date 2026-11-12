@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Split It Up Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Inter:wght@400;500;600;700&family=Libre+Barcode+39+Text&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.3.2/dist/ag-grid-community.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+  <main class="page">
+    <header class="app-top">
+      <p class="wordmark">Split It Up</p>
+      <nav id="tabs"></nav>
+    </header>
+
+    <div class="intro">
+      <h1 id="title">Who's paid?</h1>
+      <p class="muted" id="sub">Loading your receipt…</p>
+    </div>
+
+    <div id="app"></div>
+  </main>
+
+  <script src="/ui.js"></script>
+  <script>
+    const S = window.SplitItUp;
+    const $ = (id) => document.getElementById(id);
+    S.confetti({ count: 34, seed: 31 });
+    S.bouncy($("title"));
+
+    const UNITS = 12;
+    const FRAC = { 1: "", 2: "½ ", 3: "⅓ ", 4: "¼ " };
+    const id = decodeURIComponent(location.pathname.split("/")[2] || "");
+    const DEMO_MODE = new URLSearchParams(location.search).has("demo");
+    S.tabs($("tabs"), "receipt", id || undefined);
+
+    const DEMO = {
+      id: "a8f3k2", merchant: "Taco Palace", createdAt: "2026-11-10T20:30:00",
+      items: [
+        { id: "i1", name: "Carne asada burrito", priceCents: 1450 },
+        { id: "i2", name: "Fish tacos (3)", priceCents: 1325 },
+        { id: "i3", name: "Chips + guac", priceCents: 895 },
+        { id: "i4", name: "Horchata", priceCents: 450 },
+        { id: "i5", name: "Horchata", priceCents: 450 },
+        { id: "i6", name: "Churros", priceCents: 650 },
+      ],
+      taxCents: 455, tipCents: 900, totalCents: 6575,
+      payments: [
+        { name: "Sam Lee", totalCents: 2402, paidAt: "2026-11-10T20:41:00", claims: [{ itemId: "i1", split: 1 }, { itemId: "i3", split: 2 }] },
+        { name: "Priya", totalCents: 2370, paidAt: "2026-11-10T20:47:00", claims: [{ itemId: "i2", split: 1 }, { itemId: "i3", split: 2 }, { itemId: "i4", split: 1 }] },
+      ],
+      paying: [{ name: "Jordan", totalCents: 820, claims: [{ itemId: "i6", split: 1 }] }],
+    };
+
+    async function load() {
+      if (DEMO_MODE) return DEMO;
+      const res = await fetch("/api/bills/" + encodeURIComponent(id));
+      if (!res.ok) throw new Error(res.status === 404 ? "We couldn't find this receipt." : "Couldn't load the receipt.");
+      return res.json();
+    }
+
+    let itemsGrid, peopleGrid, lastCount = -1;
+    const fresh = new Set(); // rows to flash green
+
+    load().then((bill) => { setup(bill); update(bill); }).catch((err) => {
+      $("sub").textContent = "";
+      $("app").innerHTML = `<div style="display:grid;justify-items:center;gap:16px">
+        <div class="warning"><div class="star-tag star-tag--xs star-tag--pink"><span>!</span></div>${S.esc(err.message)}</div>
+        <a class="btn btn--sky" href="/">Back to wallet</a></div>`;
+    });
+
+    // check for new payments every 3 seconds
+    setInterval(async () => {
+      if (DEMO_MODE || !itemsGrid || document.hidden) return;
+      try { update(await load()); } catch {}
+    }, 3000);
+
+    const when = (iso) => iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+    const itemName = (bill, itemId) => bill.items.find((i) => i.id === itemId)?.name || "Item";
+    const claimsText = (bill, claims) => claims.map((c) => FRAC[c.split] + itemName(bill, c.itemId)).join(", ");
+
+    function setup(bill) {
+      document.title = `${bill.merchant} · Who's paid · Split It Up`;
+      const shareUrl = `${location.origin}/b/${encodeURIComponent(bill.id)}`;
+      const date = new Date(bill.createdAt || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      $("sub").textContent = `${bill.hostName ? `Hi ${bill.hostName}! ` : ""}${bill.merchant} · ${date} · updates live`;
+
+      $("app").innerHTML = `
+        <div class="host-stats">
+          <div class="stat stat--mint"><p class="stat__label">Collected</p><p class="stat__value" id="collected">$0.00</p></div>
+          <div class="stat"><p class="stat__label">Still to collect</p><p class="stat__value" id="left">$0.00</p></div>
+          <div class="stat"><p class="stat__label">Friends paid</p><p class="stat__value" id="friends">0</p></div>
+        </div>
+        <div class="progress" role="progressbar" aria-label="Share of the bill collected" aria-valuemin="0" aria-valuemax="100" id="bar"><span></span></div>
+
+        <div class="host-layout">
+          <div>
+            <div id="receipt"></div>
+            <p class="muted" style="text-align:center;font-size:.88rem;margin-top:14px">Items turn green once they're paid for.</p>
+          </div>
+          <aside class="host-side">
+            <div class="ticket">
+              <div class="ticket__main">
+                <h3 style="margin-bottom:6px">Send this to friends</h3>
+                <p class="mono" style="margin:0 0 12px;font-size:.76rem;overflow-wrap:anywhere">${S.esc(shareUrl.replace(/^https?:\/\//, ""))}</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <button class="btn btn--sm btn--sky" id="copy">Copy link</button>
+                  <a class="btn btn--sm" href="${S.esc(shareUrl)}" target="_blank" rel="noopener">View as friend ↗</a>
+                </div>
+              </div>
+              <div class="ticket__stub"><div class="qr" id="qr" role="img" aria-label="QR code for the friend link"></div></div>
+            </div>
+
+            <div>
+              <span class="label live" style="--r:-2deg"><span class="live__dot" aria-hidden="true"></span>Live</span>
+              <div class="feed" id="feed" aria-live="polite"></div>
+            </div>
+          </aside>
+        </div>
+
+        <section class="card people-card">
+          <h3 style="margin-bottom:10px">Friends</h3>
+          <div class="card__inner"><div id="people"></div></div>
+        </section>`;
+
+      S.renderReceipt($("receipt"), bill, { tableSlot: "items", tilt: -0.6 });
+
+      $("copy").onclick = async () => {
+        try { await navigator.clipboard.writeText(shareUrl); $("copy").textContent = "Copied ✓"; }
+        catch { prompt("Copy this link:", shareUrl); }
+        setTimeout(() => ($("copy").textContent = "Copy link"), 1800);
+      };
+      if (window.qrcode) {
+        const q = qrcode(0, "M");
+        q.addData(shareUrl);
+        q.make();
+        $("qr").innerHTML = q.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+      }
+
+      const flashRule = (p) => fresh.has(p.data.id);
+
+      // the receipt: one row per item, green when fully paid
+      itemsGrid = agGrid.createGrid($("items"), {
+        theme: S.gridTheme(),
+        domLayout: "autoHeight",
+        getRowId: (p) => p.data.id,
+        rowClassRules: {
+          "row-paid": (p) => p.data.taken >= UNITS,
+          "row-part": (p) => p.data.taken > 0 && p.data.taken < UNITS,
+          "row-flash": flashRule,
+        },
+        defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+        columnDefs: [
+          { field: "name", headerName: "Item", flex: 1.2, minWidth: 90, tooltipField: "name" },
+          { field: "paidBy", headerName: "Paid by", flex: 1, minWidth: 80, tooltipField: "paidBy",
+            cellStyle: { textTransform: "none", fontFamily: "var(--font-body)", fontSize: "13px" } },
+          { field: "priceCents", headerName: "Amt", width: 80, type: "rightAligned", valueFormatter: (p) => S.money(p.value) },
+        ],
+        rowData: [],
+      });
+
+      // one row per friend
+      peopleGrid = agGrid.createGrid($("people"), {
+        theme: S.gridTheme(),
+        domLayout: "autoHeight",
+        getRowId: (p) => p.data.id,
+        overlayNoRowsTemplate: '<span style="font-family:var(--font-body);padding:24px;display:block">No one has paid yet. Send them the link!</span>',
+        rowClassRules: {
+          "row-paid": (p) => p.data.status === "paid",
+          "row-part": (p) => p.data.status === "paying",
+          "row-flash": flashRule,
+        },
+        defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+        columnDefs: [
+          { field: "name", headerName: "Name", flex: 0.8, minWidth: 100, cellStyle: { fontWeight: 700 } },
+          { field: "items", headerName: "Items", flex: 2, minWidth: 160, tooltipField: "items",
+            cellStyle: { textTransform: "none", fontFamily: "var(--font-body)", fontSize: "13px" } },
+          { field: "totalCents", headerName: "Total", width: 96, type: "rightAligned", valueFormatter: (p) => S.money(p.value) },
+          { field: "status", headerName: "Status", width: 110,
+            cellRenderer: (p) => p.value === "paid"
+              ? '<span class="status-chip status-chip--paid">✓ Paid</span>'
+              : '<span class="status-chip status-chip--paying">Paying…</span>' },
+          { field: "paidAt", headerName: "When", width: 96, valueFormatter: (p) => when(p.value) },
+        ],
+        rowData: [],
+      });
+    }
+
+    function update(bill) {
+      const pays = bill.payments || [];
+      const paying = bill.paying || [];
+
+      // stats
+      const collected = pays.reduce((s, p) => s + p.totalCents, 0);
+      const left = Math.max(0, bill.totalCents - collected);
+      const pct = bill.totalCents ? Math.min(100, Math.round((collected / bill.totalCents) * 100)) : 0;
+      $("collected").textContent = S.money(collected);
+      $("left").textContent = left <= 2 ? "All done 🎉" : S.money(left); // shares can round by a cent or two
+      $("friends").textContent = new Set(pays.map((p) => p.name)).size;
+      $("bar").setAttribute("aria-valuenow", pct);
+      $("bar").firstElementChild.style.width = pct + "%";
+
+      // new payments since last check → notification + green flash
+      const isNew = lastCount >= 0 && pays.length > lastCount;
+      const newOnes = isNew ? pays.slice(lastCount) : [];
+      fresh.clear();
+      if (isNew) {
+        for (const p of newOnes) {
+          fresh.add("pay-" + pays.indexOf(p));
+          for (const c of p.claims) fresh.add(c.itemId);
+        }
+        const p = newOnes[newOnes.length - 1];
+        document.title = `💸 ${p.name} paid ${S.money(p.totalCents)}!`;
+        setTimeout(() => (document.title = `${bill.merchant} · Who's paid · Split It Up`), 5000);
+        setTimeout(() => { fresh.clear(); itemsGrid.redrawRows(); peopleGrid.redrawRows(); }, 1800);
+      }
+      lastCount = pays.length;
+
+      // receipt rows
+      const taken = {}, by = {};
+      for (const p of pays) for (const c of p.claims) {
+        taken[c.itemId] = (taken[c.itemId] || 0) + UNITS / c.split;
+        (by[c.itemId] ||= []).push(FRAC[c.split] + p.name.split(" ")[0]);
+      }
+      itemsGrid.setGridOption("rowData", bill.items.map((it) => ({
+        id: it.id, name: it.name, priceCents: it.priceCents, taken: taken[it.id] || 0, paidBy: (by[it.id] || []).join(", ") || "—",
+      })));
+
+      // people rows
+      peopleGrid.setGridOption("rowData", [
+        ...paying.map((p, n) => ({ id: "paying-" + n + p.name, name: p.name, items: claimsText(bill, p.claims), totalCents: p.totalCents, status: "paying", paidAt: null })),
+        ...pays.map((p, n) => ({ id: "pay-" + n, name: p.name, items: claimsText(bill, p.claims), totalCents: p.totalCents, status: "paid", paidAt: p.paidAt })).reverse(),
+      ]);
+      if (isNew) { itemsGrid.redrawRows(); peopleGrid.redrawRows(); }
+
+      // live feed (newest first)
+      const feed = [
+        ...paying.map((p) => `<div class="widget widget--paying"><div class="widget__icon">⏳</div>
+          <div class="widget__body"><b>${S.esc(p.name)} is paying…</b><p>${S.money(p.totalCents)}</p></div><span class="widget__time">now</span></div>`),
+        ...pays.map((p, n) => `<div class="widget${n >= pays.length - newOnes.length && isNew ? " widget--pop" : ""}"><div class="widget__icon">💸</div>
+          <div class="widget__body"><b>${S.esc(p.name)} paid</b><p>${S.money(p.totalCents)} · ${S.esc(claimsText(bill, p.claims))}</p></div>
+          <span class="widget__time">${when(p.paidAt)}</span></div>`).reverse(),
+      ];
+      $("feed").innerHTML = feed.length ? feed.join("")
+        : `<p class="muted" style="margin:0;font-size:.92rem">Waiting for the first payment… Send friends the link above.</p>`;
+    }
+  </script>
+</body>
+</html>
