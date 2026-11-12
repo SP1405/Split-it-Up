@@ -5,6 +5,8 @@ const { createOrder, captureOrder } = require("./lib/paypal");
 const { scanReceipt } = require("./lib/ai");
 const crypto = require("crypto");
 const { getBill, saveBill } = require("./lib/db");
+const { priceClaims } = require("./lib/split");
+
 
 
 const app = express();
@@ -71,7 +73,86 @@ app.post("/api/bills", (req, res) => {
 app.get("/api/bills/:id", (req, res) => {
   const bill = getBill(req.params.id);
   if (!bill) return res.status(404).json({ error: "Bill not found" });
-  res.json(bill);
+  const { pending, ...publicBill } = bill; // don't send unfinished orders to the browser
+  res.json(publicBill);
+});
+
+// ---------- Paying your share (PayPal / Venmo) ----------
+
+// Step A: friend clicks the PayPal or Venmo button.
+// Browser sends ONLY { name, claims } — the server works out the amount itself.
+app.post("/api/bills/:id/orders", async (req, res) => {
+  try {
+    const bill = getBill(req.params.id);
+    if (!bill) return res.status(404).json({ error: "Bill not found" });
+
+    const name = String(req.body.name || "").trim().slice(0, 40);
+    if (!name) return res.status(400).json({ error: "Enter your name" });
+
+    let share;
+    try {
+      share = priceClaims(bill, req.body.claims);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (share.totalCents < 1) return res.status(400).json({ error: "Amount is too small" });
+
+    // Ask PayPal for an order for exactly this person's share
+    const amount = (share.totalCents / 100).toFixed(2); // PayPal wants "12.34"
+    const order = await createOrder(amount, `${name}'s share at ${bill.merchant}`.slice(0, 127));
+
+    // Remember what this order is for, so capture can't be tricked into paying for other items
+    bill.pending = bill.pending || {};
+    bill.pending[order.id] = { name, claims: share.claims, totalCents: share.totalCents };
+    saveBill(bill);
+
+    res.json({ id: order.id, totalCents: share.totalCents });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Step B: friend approved the payment in the PayPal/Venmo popup -> take the money
+app.post("/api/bills/:id/orders/:orderId/capture", async (req, res) => {
+  const bill = getBill(req.params.id);
+  if (!bill) return res.status(404).json({ error: "Bill not found" });
+
+  const orderId = req.params.orderId;
+  const order = bill.pending && Object.hasOwn(bill.pending, orderId) ? bill.pending[orderId] : null;
+  if (!order) return res.status(404).json({ error: "Order not found" });
+  if (order.capturing) return res.status(409).json({ error: "This payment is already being processed" });
+
+  // Re-check: did someone else pay for these items while this person was in the popup?
+  try {
+    priceClaims(bill, order.claims);
+  } catch (err) {
+    delete bill.pending[orderId];
+    saveBill(bill);
+    return res.status(409).json({ error: err.message + ". You were not charged." });
+  }
+
+  order.capturing = true; // hold these items while we talk to PayPal
+  try {
+    const data = await captureOrder(orderId);
+    if (data.status !== "COMPLETED") throw new Error("Payment not completed (" + data.status + ")");
+
+    // Only now, after PayPal says COMPLETED, do we record the payment
+    bill.payments.push({
+      name: order.name,
+      orderId,
+      claims: order.claims,
+      totalCents: order.totalCents,
+      paidAt: new Date().toISOString(),
+    });
+    delete bill.pending[orderId];
+    saveBill(bill);
+    res.json({ status: "COMPLETED", totalCents: order.totalCents });
+  } catch (err) {
+    order.capturing = false;
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // The shareable link: /b/9f2c41ab shows bill.html

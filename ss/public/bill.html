@@ -10,62 +10,223 @@
     td { padding: 6px 0; border-bottom: 1px solid #eee; }
     td:last-child { text-align: right; }
     .muted { color: #666; }
-    #link { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; margin-bottom: 8px; }
-    #copy { width: 100%; padding: 12px; font: inherit; font-weight: 600; }
+    input[type="text"], #link { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; }
+    .item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .item .name { flex: 1; }
+    .item.done { color: #aaa; }
+    .item select { font: inherit; }
+    .paid { color: #0a7d32; }
+    #paypal-buttons { margin-top: 16px; }
+    #copy { width: 100%; padding: 12px; font: inherit; font-weight: 600; margin-top: 8px; }
   </style>
 </head>
 <body>
   <h1>SplitSnap</h1>
   <p id="status" class="muted">Loading bill...</p>
-  <div id="bill"></div>
+
+  <div id="main" hidden>
+    <h2 id="merchant"></h2>
+    <p id="host" class="muted"></p>
+
+    <h3>1. Who are you?</h3>
+    <input type="text" id="name" placeholder="Your name" />
+
+    <h3>2. Tap what you had</h3>
+    <div id="items"></div>
+
+    <h3>3. Pay your share</h3>
+    <table id="summary"></table>
+    <p id="msg"></p>
+    <div id="paypal-buttons"></div>
+
+    <h3>Who's paid</h3>
+    <p id="progress" class="muted"></p>
+    <div id="payments"></div>
+
+    <h3>Share with friends</h3>
+    <input id="link" readonly />
+    <button id="copy">Copy link</button>
+  </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
     const money = (c) => "$" + (c / 100).toFixed(2);
     const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-    // The bill id is the last part of the URL: /b/9f2c41ab -> "9f2c41ab"
-    const billId = location.pathname.split("/").pop();
+    const billId = location.pathname.split("/").pop(); // /b/9f2c41ab -> "9f2c41ab"
+    const UNITS = 12; // same idea as lib/split.js: each item = 12 units, so 1/2, 1/3, 1/4 add up exactly
+    const LABEL = { 1: "whole", 2: "½", 3: "⅓", 4: "¼" };
 
-    async function load() {
-      try {
-        const res = await fetch("/api/bills/" + encodeURIComponent(billId));
-        const b = await res.json();
-        if (!res.ok) throw new Error(b.error);
+    let bill = null;     // latest bill from the server
+    let lastPaid = "";   // used to only redraw items when payments change
+    let picked = {};     // what YOU ticked: { itemId: split }  (split 1 = whole, 2 = half, ...)
 
-        const subtotal = b.items.reduce((s, i) => s + i.priceCents, 0);
-        const total = subtotal + b.taxCents + b.tipCents;
+    // How many units of each item are already paid for
+    function takenUnits() {
+      const taken = {};
+      for (const p of bill.payments)
+        for (const c of p.claims) taken[c.itemId] = (taken[c.itemId] || 0) + UNITS / c.split;
+      return taken;
+    }
 
-        $("status").textContent = "";
-        $("bill").innerHTML = `
-          <h2>${esc(b.merchant)}</h2>
-          <p class="muted">${esc(b.hostName)} paid this bill. Tap your items to pay your share (coming soon).</p>
-          <table>
-            ${b.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${money(i.priceCents)}</td></tr>`).join("")}
-            <tr><td class="muted">Tax</td><td class="muted">${money(b.taxCents)}</td></tr>
-            <tr><td class="muted">Tip</td><td class="muted">${money(b.tipCents)}</td></tr>
-            <tr><td><b>Total</b></td><td><b>${money(total)}</b></td></tr>
-          </table>
-          <h3>Share with friends</h3>
-          <input id="link" readonly value="${esc(location.href)}" />
-          <button id="copy">Copy link</button>`;
+    // Draw the item list with a checkbox + "whole / ½ / ⅓ / ¼" picker
+    function renderItems() {
+      const taken = takenUnits();
+      $("items").innerHTML = bill.items.map((item) => {
+        const left = UNITS - (taken[item.id] || 0);
+        const payers = bill.payments.filter((p) => p.claims.some((c) => c.itemId === item.id)).map((p) => p.name);
 
-        $("copy").onclick = async () => {
-          try {
-            await navigator.clipboard.writeText(location.href);
-            $("copy").textContent = "Copied ✓";
-          } catch {
-            // Clipboard only works on https/localhost; otherwise select the text so the user can copy it
-            $("link").select();
-            $("copy").textContent = "Press Ctrl/Cmd+C to copy";
-          }
-        };
-      } catch (err) {
-        $("status").textContent = "❌ " + err.message;
+        // Fully paid: grey it out and say who paid
+        if (left <= 0) {
+          delete picked[item.id];
+          return `<div class="item done"><span class="name">${esc(item.name)}<br>
+            <small class="paid">Paid by ${esc(payers.join(", "))} ✅</small></span><span>${money(item.priceCents)}</span></div>`;
+        }
+
+        // Only offer shares that still fit (e.g. if half is paid, you can't take it "whole")
+        const options = [1, 2, 3, 4].filter((n) => UNITS / n <= left);
+        if (picked[item.id] && !options.includes(picked[item.id])) delete picked[item.id];
+        const chosen = picked[item.id] || options[0];
+
+        return `<label class="item">
+          <input type="checkbox" data-id="${item.id}" ${picked[item.id] ? "checked" : ""} />
+          <span class="name">${esc(item.name)}
+            ${payers.length ? `<br><small class="muted">Partly paid by ${esc(payers.join(", "))}</small>` : ""}</span>
+          <select data-id="${item.id}">
+            ${options.map((n) => `<option value="${n}" ${n === chosen ? "selected" : ""}>${LABEL[n]}</option>`).join("")}
+          </select>
+          <span>${money(item.priceCents)}</span>
+        </label>`;
+      }).join("");
+    }
+
+    // Your items + your share of tax and tip (same formula as the server; the server has the final say)
+    function renderSummary() {
+      const subtotal = bill.items.reduce((s, i) => s + i.priceCents, 0);
+      let itemsCents = 0;
+      for (const [itemId, split] of Object.entries(picked)) {
+        const item = bill.items.find((i) => i.id === itemId);
+        itemsCents += Math.round(item.priceCents / split);
+      }
+      const tax = Math.round((itemsCents / subtotal) * bill.taxCents);
+      const tip = Math.round((itemsCents / subtotal) * bill.tipCents);
+      $("summary").innerHTML = `
+        <tr><td>Your items</td><td>${money(itemsCents)}</td></tr>
+        <tr><td class="muted">Your share of tax</td><td class="muted">${money(tax)}</td></tr>
+        <tr><td class="muted">Your share of tip</td><td class="muted">${money(tip)}</td></tr>
+        <tr><td><b>You pay</b></td><td><b>${money(itemsCents + tax + tip)}</b></td></tr>`;
+    }
+
+    function renderPayments() {
+      const total = bill.items.reduce((s, i) => s + i.priceCents, 0) + bill.taxCents + bill.tipCents;
+      const collected = bill.payments.reduce((s, p) => s + p.totalCents, 0);
+      $("progress").textContent = `${bill.hostName} has collected ${money(collected)} of ${money(total)}`;
+      $("payments").innerHTML = bill.payments.length
+        ? bill.payments.map((p) => `<div class="paid">✅ ${esc(p.name)} paid ${money(p.totalCents)}</div>`).join("")
+        : `<p class="muted">Nobody yet — be the first!</p>`;
+    }
+
+    // Get the latest bill. Called on load and every 3 seconds so everyone sees payments live.
+    async function refresh() {
+      const res = await fetch("/api/bills/" + encodeURIComponent(billId));
+      const b = await res.json();
+      if (!res.ok) throw new Error(b.error);
+      bill = b;
+      const paidNow = JSON.stringify(bill.payments);
+      if (paidNow !== lastPaid) { // only redraw when something changed, so your ticks aren't disturbed
+        lastPaid = paidNow;
+        renderItems();
+        renderSummary();
+        renderPayments();
       }
     }
 
-    load();
+    // Tick / untick an item, or change whole / ½ / ⅓ / ¼
+    $("items").addEventListener("change", (e) => {
+      const id = e.target.dataset.id;
+      if (!id) return;
+      const row = e.target.closest(".item");
+      const box = row.querySelector("input[type=checkbox]");
+      if (e.target.tagName === "SELECT") box.checked = true; // picking a share ticks the item
+      if (box.checked) picked[id] = Number(row.querySelector("select").value);
+      else delete picked[id];
+      renderSummary();
+    });
+
+    // ---------- PayPal / Venmo buttons ----------
+    async function loadPayPal() {
+      const { clientId } = await (await fetch("/api/config")).json();
+      const script = document.createElement("script");
+      // enable-funding=venmo shows the Venmo button; buyer-country=US is needed to see it in sandbox
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons&enable-funding=venmo&buyer-country=US`;
+      script.onerror = () => { $("msg").textContent = "❌ PayPal couldn't load (turn off ad blockers / Brave Shields)"; };
+      script.onload = () => {
+        paypal.Buttons({
+          // Before the popup opens: make sure we have a name and at least one item
+          onClick: (data, actions) => {
+            $("msg").textContent = "";
+            if (!$("name").value.trim()) { $("msg").textContent = "❌ Enter your name first"; return actions.reject(); }
+            if (!Object.keys(picked).length) { $("msg").textContent = "❌ Tick at least one item"; return actions.reject(); }
+            return actions.resolve();
+          },
+          // Ask OUR server to create the order. We only send name + which items; the server sets the price.
+          createOrder: async () => {
+            const claims = Object.entries(picked).map(([itemId, split]) => ({ itemId, split }));
+            const res = await fetch(`/api/bills/${billId}/orders`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: $("name").value.trim(), claims }),
+            });
+            const data = await res.json();
+            if (!res.ok) { $("msg").textContent = "❌ " + data.error; throw new Error(data.error); }
+            return data.id;
+          },
+          // The friend approved in PayPal/Venmo: ask our server to capture (actually take) the money
+          onApprove: async (data) => {
+            $("msg").textContent = "Finishing payment...";
+            const res = await fetch(`/api/bills/${billId}/orders/${data.orderID}/capture`, { method: "POST" });
+            const out = await res.json();
+            if (!res.ok) { $("msg").textContent = "❌ " + out.error; return; }
+            $("msg").textContent = `✅ Paid ${money(out.totalCents)} — thanks ${$("name").value.trim()}!`;
+            picked = {};
+            lastPaid = ""; // force a redraw
+            await refresh();
+          },
+          onError: (err) => {
+            console.error(err);
+            if (!$("msg").textContent.startsWith("❌")) $("msg").textContent = "❌ Payment failed — please try again";
+          },
+        }).render("#paypal-buttons");
+      };
+      document.head.appendChild(script);
+    }
+
+    // ---------- Share link ----------
+    $("link").value = location.href;
+    $("copy").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        $("copy").textContent = "Copied ✓";
+      } catch {
+        $("link").select(); // clipboard only works on https/localhost
+        $("copy").textContent = "Press Ctrl/Cmd+C to copy";
+      }
+    };
+
+    // ---------- Start ----------
+    (async () => {
+      try {
+        await refresh();
+        $("status").textContent = "";
+        $("merchant").textContent = bill.merchant;
+        $("host").textContent = `${bill.hostName} paid this bill. Tick what you had and pay your share.`;
+        $("main").hidden = false;
+        loadPayPal();
+        setInterval(() => refresh().catch(console.error), 3000); // live updates
+      } catch (err) {
+        $("status").textContent = "❌ " + err.message;
+      }
+    })();
   </script>
 </body>
 </html>
