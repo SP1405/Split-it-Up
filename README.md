@@ -3,7 +3,7 @@
 **Snap a receipt → AI itemizes it → share a link → each friend taps what they had and pays their exact share with PayPal.**
 
 🔗 **Live demo:** https://split-it-up-iao5.onrender.com
-🎥 **Demo video:** _TODO: add link_
+🎥 **Demo video:** https://www.youtube.com/watch?v=WygiXBxGBjU
 
 > Built for the **"Build what's next with PayPal and AI"** hackathon. All payments run in the **PayPal sandbox**, so no real money moves.
 
