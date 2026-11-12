@@ -1,4 +1,4 @@
-# Split It Up 🧾💸
+# Split It Up 🧾
 
 **Snap a receipt → AI itemizes it → share a link → each friend taps what they had and pays their exact share with PayPal or Venmo.**
 
