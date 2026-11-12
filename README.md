@@ -1,6 +1,6 @@
 # Split It Up 🧾
 
-**Snap a receipt → AI itemizes it → share a link → each friend taps what they had and pays their exact share with PayPal or Venmo.**
+**Snap a receipt → AI itemizes it → share a link → each friend taps what they had and pays their exact share with PayPal.**
 
 🔗 **Live demo:** https://split-it-up-iao5.onrender.com
 🎥 **Demo video:** _TODO: add link_
@@ -20,7 +20,7 @@ Split It Up handles it as it happens. Each time someone pays, they snap the rece
 1. **Snap the receipt.** The host takes a photo. **Google Gemini** reads it and returns every line item, tax, and tip. Lines like "2 × Huevos Rancheros $39" are split into separate items so two people can each claim one.
 2. **Check and share.** The host fixes anything the AI misread, picks a tip (15 / 18 / 20%), and gets a share link plus a QR code.
 3. **Friends tap what they had.** Each friend opens the link, enters their name, and taps their items. Shared something? Take ½, ⅓ or ¼ of it.
-4. **Everyone pays their exact share.** That's their items plus their **proportional share of tax and tip**, paid with **PayPal or Venmo** through PayPal Checkout.
+4. **Everyone pays their exact share.** That's their items plus their **proportional share of tax and tip**, paid with **PayPal** through PayPal Checkout.
 5. **The host watches it fill up live.** The host dashboard updates every few seconds: who's paid, what's left, and items greyed out once they're covered.
 
 ## Try it (for judges)
@@ -28,9 +28,8 @@ Split It Up handles it as it happens. Each time someone pays, they snap the rece
 1. Open the **[live demo](https://split-it-up-iao5.onrender.com)**. The free server may take **~50 seconds to wake up** on the first visit.
 2. Tap **Scan** and upload any restaurant receipt photo.
 3. Review the items, add a tip, enter your name, and **create the bill**.
-4. Open the share link (or scan the QR code with your phone), tick some items, and pay with the **yellow PayPal button**:
+4. Open the share link (or scan the QR code with your phone), tick some items, and pay with the **PayPal button**:
    - **Sandbox buyer login:** `TODO: sandbox personal email` / `TODO: password`
-   - Or use **Debit or Credit Card** with a test card from PayPal's [sandbox card generator](https://developer.paypal.com/tools/sandbox/card-testing/).
 5. Watch the payment appear on the host dashboard (`/b/<id>/host`).
 
 > Bills are stored on the free server's temporary disk, so they reset when the server sleeps or redeploys. Create a fresh bill rather than reusing an old link.
@@ -41,7 +40,7 @@ Split It Up handles it as it happens. Each time someone pays, they snap the rece
 |---|---|
 | **Google Gemini 3.5 Flash** (`@google/genai`), with **Gemini 3.5 Flash-Lite** as an automatic fallback | Reads the receipt photo and returns structured JSON: merchant, line items with prices, tax, tip, and total. It also expands abbreviations ("CHKN SAND" → "Chicken Sandwich"). If the main model is busy, the server retries with Flash-Lite. |
 | **PayPal Orders v2 REST API** | The server creates an order for each friend's exact share, then captures it after they approve. |
-| **PayPal JavaScript SDK (Smart Buttons)** | PayPal, **Venmo** (`enable-funding=venmo`), and card buttons on the bill page. |
+| **PayPal JavaScript SDK (Smart Buttons)** | The PayPal checkout button on the bill page. |
 | **Node.js + Express** | API server and static hosting. |
 | **Plain HTML / CSS / JavaScript** | No framework and no build step. |
 | **AG Grid Community**, **qrcode-generator** | Item tables, and QR codes for the share link. |
@@ -65,7 +64,7 @@ Browser                         Server (Express)                         Externa
 scan.html  ── photo ──────────▶ POST /api/scan ─────────────────────────▶ Gemini (receipt → JSON)
            ── edited items ───▶ POST /api/bills            → saves bill, returns id
 bill.html  ── name + claims ──▶ POST /api/bills/:id/orders → computes share ▶ PayPal: create order
-           (PayPal/Venmo popup: friend approves)
+           (PayPal popup: friend approves)
            ── approved ───────▶ POST /api/bills/:id/orders/:oid/capture  ▶ PayPal: capture
 host.html  ── every 3s ───────▶ GET  /api/bills/:id        → payments, totals, who's paying
 ```

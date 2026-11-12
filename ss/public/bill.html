@@ -76,9 +76,8 @@
         if (!clientId) throw new Error("PayPal isn't set up yet (PAYPAL_CLIENT_ID is missing in .env)");
         await new Promise((ok, bad) => {
           const s = document.createElement("script");
-          // enable-funding=venmo shows the Venmo button; buyer-country=US is needed to see it in sandbox.
-          // disable-funding hides Pay Later + card so friends just see PayPal and Venmo.
-          s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&components=buttons&enable-funding=venmo&disable-funding=paylater,card&buyer-country=US`;
+          // PayPal button only: disable-funding hides the Pay Later and card buttons.
+          s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=USD&components=buttons&disable-funding=paylater,card`;
           s.onload = ok;
           s.onerror = () => bad(new Error("Couldn't load PayPal — check your connection"));
           document.head.appendChild(s);
@@ -143,7 +142,7 @@
             </div>
             <div class="card__inner" style="margin-top:16px">
               <div id="flash"></div>
-              <p id="pay-hint" class="muted" style="font-size:.85rem;margin:0 0 10px;text-align:center">Pick your items, then pay ${S.esc(host)} with PayPal or Venmo.</p>
+              <p id="pay-hint" class="muted" style="font-size:.85rem;margin:0 0 10px;text-align:center">Pick your items, then pay ${S.esc(host)} with PayPal.</p>
               <div id="pay-msg" style="margin-bottom:10px" hidden></div>
               <div id="pp" style="min-height:48px"></div>
             </div>
@@ -246,8 +245,8 @@
         $("you-tax").textContent = S.money(tax);
         $("you-tip").textContent = S.money(tip);
         $("pay-hint").textContent = picked.length
-          ? `Pay ${S.money(total)} to ${host} with PayPal or Venmo.`
-          : `Pick your items, then pay ${host} with PayPal or Venmo.`;
+          ? `Pay ${S.money(total)} to ${host} with PayPal.`
+          : `Pick your items, then pay ${host} with PayPal.`;
         hideMsg();
         // little wiggle when the total changes
         const burst = $("burst");

@@ -91,9 +91,9 @@ app.get("/api/bills/:id", (req, res) => {
   });
 });
 
-// ---------- Paying your share (PayPal / Venmo) ----------
+// ---------- Paying your share (PayPal) ----------
 
-// Step A: friend clicks the PayPal or Venmo button.
+// Step A: friend clicks the PayPal button.
 // Browser sends ONLY { name, claims } — the server works out the amount itself.
 app.post("/api/bills/:id/orders", async (req, res) => {
   try {
@@ -127,7 +127,7 @@ app.post("/api/bills/:id/orders", async (req, res) => {
   }
 });
 
-// Step B: friend approved the payment in the PayPal/Venmo popup -> take the money
+// Step B: friend approved the payment in the PayPal popup -> take the money
 app.post("/api/bills/:id/orders/:orderId/capture", async (req, res) => {
   const bill = getBill(req.params.id);
   if (!bill) return res.status(404).json({ error: "Bill not found" });
