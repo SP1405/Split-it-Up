@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Split It Up Style Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Inter:wght@400;500;600;700&family=Libre+Barcode+39+Text&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.3.2/dist/ag-grid-community.min.js"></script>
+  <style>
+    .sg-section { margin: 64px 0; }
+    .sg-head { margin-bottom: 20px; }
+    .sg-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+    .sg-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+    .sg-two { display: grid; gap: 40px; grid-template-columns: 1fr; align-items: start; }
+    @media (min-width: 820px) { .sg-two { grid-template-columns: 1fr 1fr; } }
+    .sg-hint { font-size: 0.88rem; margin-top: 14px; text-align: center; }
+
+    .sg-top { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 16px; }
+    .sg-wordmark { font-family: var(--font-display); font-weight: 300; font-size: 1.9rem; text-align: center; margin: 0; letter-spacing: 0.02em; }
+    .sg-welcome { text-align: center; margin: 56px 0 8px; }
+    .sg-welcome h1 { justify-content: center; margin: 0; }
+    @media (max-width: 560px) {
+      .sg-top { grid-template-columns: 1fr; }
+      .sg-wordmark { text-align: left; order: -1; }
+    }
+    .sg-widgets { display: grid; gap: 12px; max-width: 440px; }
+    .sg-folders { display: flex; flex-wrap: wrap; gap: 36px 40px; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="sg-top">
+      <nav class="nav-stack" aria-label="Style guide sections">
+        <a class="label" href="#colors">Colours</a>
+        <a class="label" href="#buttons">Buttons</a>
+        <a class="label" href="#widgets">Widgets</a>
+        <a class="label" href="#folders">Folders</a>
+        <a class="label" href="#receipts">Receipts</a>
+        <a class="label label--round" href="#ticket">Share</a>
+      </nav>
+      <p class="sg-wordmark">Split It Up</p>
+      <div class="star-tag star-tag--sm" style="--rot:10deg"><span>$2.99</span></div>
+    </header>
+
+    <div class="sg-welcome">
+      <h1 id="welcome">Welcome!</h1>
+      <p class="muted">Snap the receipt. Everyone claims their bit. Done.</p>
+    </div>
+
+    <section class="sg-section" id="colors">
+      <div class="sg-head"><span class="label" style="--r:-3deg">Colour palette</span></div>
+      <div class="sg-grid" id="swatches"></div>
+      <p class="muted" style="font-size:.88rem;margin-top:14px">Confetti colours are decoration only. The UI itself uses white, paper, grey glass, sky and ink.</p>
+    </section>
+
+    <section class="sg-section">
+      <div class="sg-head"><span class="label" style="--r:2deg">Type</span></div>
+      <p class="display" style="font-size:2.4rem;margin-bottom:10px">Outfit Light — headings</p>
+      <p style="font-size:1.05rem;font-weight:600;margin:0 0 8px">SF Pro / Inter — body, buttons, widgets</p>
+      <p class="mono" style="margin:0 0 8px">SPACE MONO — PRINTED ON A RECEIPT  $12.50</p>
+      <p style="font-family:var(--font-barcode);font-size:2.6rem;line-height:1;margin:0">*SPLITITUP*</p>
+    </section>
+
+    <section class="sg-section" id="buttons">
+      <div class="sg-head"><span class="label" style="--r:-2deg">Buttons &amp; labels</span></div>
+      <div class="sg-row">
+        <button class="btn btn--sky">Create bill</button>
+        <button class="btn">+ New receipt</button>
+        <button class="btn btn--mint">Mark paid</button>
+        <button class="btn btn--ink">Pay my share</button>
+        <button class="btn" disabled>Disabled</button>
+      </div>
+      <div class="sg-row" style="margin-top:16px">
+        <button class="btn btn--grey btn--sm">▶ Scan</button>
+        <button class="btn btn--grey btn--sm">⤮ Shuffle split</button>
+        <button class="btn btn--sm">+ Add row</button>
+        <button class="btn btn--icon" aria-label="Close">✕</button>
+      </div>
+      <div class="sg-row" style="margin-top:22px">
+        <span class="label" style="--r:-4deg">Taco night</span>
+        <span class="label label--round" style="--r:3deg">3 friends</span>
+        <span class="label" style="--r:-1deg;background:var(--sky)">Unpaid</span>
+      </div>
+      <div style="max-width:340px;margin-top:22px">
+        <input class="field" placeholder="Your name" aria-label="Your name" />
+      </div>
+    </section>
+
+    <section class="sg-section" id="widgets">
+      <div class="sg-head"><span class="label" style="--r:3deg">Frosted widgets</span></div>
+      <div class="sg-widgets" id="widgets-list"></div>
+      <button class="btn btn--sm" id="ping" style="margin-top:16px">Simulate a payment</button>
+    </section>
+
+    <section class="sg-section" id="folders">
+      <div class="sg-head"><span class="label" style="--r:-3deg">Folders &amp; badges</span></div>
+      <div class="sg-folders">
+        <button class="folder"><span class="badge">1</span><span class="folder__art"><span class="folder__front"></span></span><span class="folder__label">Taco Palace<small>Nov 10 · $65.75</small></span></button>
+        <button class="folder"><span class="badge">2</span><span class="folder__art"><span class="folder__front"></span></span><span class="folder__label">Corner Deli<small>Nov 8 · $41.20</small></span></button>
+        <button class="folder"><span class="badge badge--sky">3</span><span class="folder__art"><span class="folder__front"></span></span><span class="folder__label">Boba run<small>Nov 2 · $28.50</small></span></button>
+      </div>
+    </section>
+
+    <section class="sg-section">
+      <div class="sg-head"><span class="label" style="--r:2deg">Price tags &amp; warnings</span></div>
+      <div class="sg-row" style="gap:26px">
+        <div class="star-tag star-tag--sm star-tag--blue"><span>$3</span></div>
+        <div class="star-tag" style="--rot:8deg"><span><small>your total</small>$18.42</span></div>
+        <div class="star-tag star-tag--lg star-tag--pink" style="--rot:-5deg"><span><small>you owe</small>$27.15</span></div>
+      </div>
+      <div class="sg-row" style="margin-top:24px">
+        <div class="warning"><div class="star-tag star-tag--xs star-tag--pink"><span>!</span></div>Doesn't add up — check the items</div>
+        <div class="warning"><div class="star-tag star-tag--xs star-tag--green"><span>✓</span></div>Matches the receipt total</div>
+      </div>
+    </section>
+
+    <section class="sg-section" id="receipts">
+      <div class="sg-head"><span class="label" style="--r:-2deg">Receipts</span></div>
+      <div class="sg-two">
+        <div>
+          <div id="receipt-a"></div>
+          <p class="sg-hint muted">Plain receipt.</p>
+        </div>
+        <div>
+          <div id="receipt-b"></div>
+          <p class="sg-hint muted">AG Grid inside a receipt: editable cells, checkbox selection.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sg-section" id="ticket">
+      <div class="sg-head"><span class="label" style="--r:3deg">Share ticket &amp; notes</span></div>
+      <div class="sg-row" style="gap:32px;align-items:flex-start">
+        <div class="ticket" style="max-width:500px;flex:1 1 320px">
+          <div class="ticket__main">
+            <h3 style="margin-bottom:6px">Bill created!</h3>
+            <p class="mono" style="margin:0 0 12px;font-size:.8rem;overflow-wrap:anywhere">splititup.onrender.com/b/a8f3k2</p>
+            <button class="btn btn--sm">Copy link</button>
+          </div>
+          <div class="ticket__stub">
+            <div style="width:96px;height:96px;background:#fff;border:1.25px dashed var(--ink);border-radius:8px;display:grid;place-items:center;font-size:.78rem">QR code</div>
+          </div>
+        </div>
+        <div class="note object" style="--r:4deg;max-width:200px">Tax &amp; tip get split by what you ordered, so nobody overpays.</div>
+      </div>
+    </section>
+
+    <section class="sg-section">
+      <div class="sg-head"><span class="label" style="--r:-2deg">Payment card</span></div>
+      <div class="card" style="max-width:400px">
+        <h3 style="margin-bottom:10px">Pay the host</h3>
+        <div class="card__inner">
+          <p class="muted" style="margin:0 0 12px;font-size:.9rem">PayPal and Venmo buttons go here, unstyled.</p>
+          <div style="height:46px;border-radius:6px;background:#FFC439;margin-bottom:10px"></div>
+          <div style="height:46px;border-radius:6px;background:#008CFF"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/ui.js"></script>
+  <script>
+    const S = window.SplitItUp;
+    S.confetti();
+    S.bouncy(document.getElementById("welcome"));
+
+    const palette = [
+      ["white", "--bg", "#FFFFFF"], ["paper", "--paper", "#FBF8F1"], ["sky", "--sky", "#BFE3FF"],
+      ["mint (paid)", "--mint", "#CFF3E0"], ["grey glass", "--glass", "rgba(229,229,234,.72)"], ["ink", "--ink", "#1C1C1E"],
+      ["confetti blue", "--c-blue", "#9CCBFF"], ["confetti green", "--c-green", "#A8E6B0"],
+      ["confetti yellow", "--c-yellow", "#FFE58F"], ["confetti pink", "--c-pink", "#FFB8C9"],
+    ];
+    document.getElementById("swatches").innerHTML = palette
+      .map(([n, v, h]) => `<div class="swatch"><div class="swatch__chip" style="background:var(${v})"></div>
+        <div class="swatch__label"><b>${n}</b><br><code>${v}</code><br><code>${h}</code></div></div>`).join("");
+
+    // widgets
+    const list = document.getElementById("widgets-list");
+    const widget = (icon, title, text, time, pop) => {
+      const el = document.createElement("div");
+      el.className = "widget" + (pop ? " widget--pop" : "");
+      el.innerHTML = `<div class="widget__icon">${icon}</div>
+        <div class="widget__body"><b>${S.esc(title)}</b><p>${S.esc(text)}</p></div>
+        <span class="widget__time">${S.esc(time)}</span>`;
+      return el;
+    };
+    list.append(
+      widget("🧾", "Taco Palace", "Priya claimed Fish tacos + Horchata", "2m ago"),
+      widget("💸", "Sam paid", "$18.42 via Venmo", "now"),
+    );
+    const names = ["Jordan", "Alex", "Mia", "Leo"];
+    let k = 0;
+    document.getElementById("ping").onclick = () => {
+      const n = names[k++ % names.length];
+      list.prepend(widget("💸", `${n} paid`, `$${(10 + Math.random() * 20).toFixed(2)} via PayPal`, "now", true));
+      if (list.children.length > 4) list.lastElementChild.remove();
+    };
+
+    const bill = {
+      id: "a8f3k2", merchant: "Taco Palace", date: "2026-11-10",
+      items: [
+        { name: "Carne asada burrito", quantity: 1, priceCents: 1450 },
+        { name: "Fish tacos (3)", quantity: 1, priceCents: 1325 },
+        { name: "Chips + guac", quantity: 1, priceCents: 895 },
+        { name: "Horchata", quantity: 2, priceCents: 900 },
+        { name: "Churros", quantity: 1, priceCents: 650 },
+      ],
+      taxCents: 455, tipCents: 900,
+    };
+    S.renderReceipt(document.getElementById("receipt-a"), bill);
+    S.renderReceipt(document.getElementById("receipt-b"), { ...bill, id: "b77q9", merchant: "Corner Deli" }, { tableSlot: "sg-grid" });
+
+    if (window.agGrid) {
+      agGrid.createGrid(document.getElementById("sg-grid"), {
+        theme: S.gridTheme(),
+        domLayout: "autoHeight",
+        rowSelection: { mode: "multiRow", headerCheckbox: false },
+        defaultColDef: { sortable: false, resizable: false, suppressMovable: true },
+        columnDefs: [
+          { field: "quantity", headerName: "Qty", width: 70, editable: true },
+          { field: "name", headerName: "Item", flex: 1, editable: true },
+          { field: "priceCents", headerName: "Amt", width: 90, editable: true, type: "rightAligned",
+            valueFormatter: (p) => S.money(p.value) },
+        ],
+        rowData: bill.items.map((i) => ({ ...i })),
+        onFirstDataRendered: (e) => e.api.getRowNode("1")?.setSelected(true),
+      });
+    }
+  </script>
+</body>
+</html>

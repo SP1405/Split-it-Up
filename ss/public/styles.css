@@ -1,0 +1,999 @@
+/* ==========================================================
+   Split It Up design system — white canvas, doodle confetti,
+   frosted widgets, tilted outlined labels, paper receipts.
+   Fonts (load in each page <head>):
+   https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500&family=Inter:wght@400;500;600;700&family=Libre+Barcode+39+Text&family=Space+Mono:wght@400;700&display=swap
+   ========================================================== */
+
+:root {
+  /* base */
+  --bg: #FFFFFF;
+  --paper: #FBF8F1;
+  --sky: #BFE3FF;
+  --sky-deep: #5AA9F0;     /* focus rings, checkbox accent */
+  --mint: #CFF3E0;         /* "paid" */
+  --ink: #1C1C1E;          /* text + doodle lines */
+  --ink-soft: #6C6C70;     /* secondary text, AA on white */
+
+  /* iOS-style greys */
+  --grey-1: #F2F2F7;
+  --grey-2: #E5E5EA;
+  --grey-3: #C7C7CC;
+  --grey-5: #8E8E93;
+  --glass: rgba(229, 229, 234, 0.72);
+
+  /* confetti (decoration only) */
+  --c-blue: #9CCBFF;
+  --c-green: #A8E6B0;
+  --c-yellow: #FFE58F;
+  --c-pink: #FFB8C9;
+  --c-lilac: #D9CCFF;
+
+  /* small number badges */
+  --badge: #FF5A5F;
+
+  /* type */
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  --font-mono: "Space Mono", "Courier New", monospace;
+  --font-barcode: "Libre Barcode 39 Text", monospace;
+
+  /* shape + depth */
+  --line: 1.25px solid var(--ink);
+  --radius: 22px;
+  --pill: 999px;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-object: 0 14px 28px rgba(0, 0, 0, 0.12), 0 3px 6px rgba(0, 0, 0, 0.08);
+
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t: 200ms;
+
+  /* paper grain (inline SVG noise, no image files) */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.2 0 0 0 0.18 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  /* rounded five-point star, used as a mask */
+  --star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50.0 10.0 L63.5 35.4 L91.8 40.4 L71.9 61.1 L75.9 89.6 L50.0 77.0 L24.1 89.6 L28.1 61.1 L8.2 40.4 L36.5 35.4Z' fill='%23000' stroke='%23000' stroke-width='9' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* pixel arrow cursor */
+  --cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='30' viewBox='0 0 11 15' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h1v1h-4v1h1v1h1v2h-2v-1h-1v-1h-1v-1h-1v1h-1v1h-1z' fill='%23000'/%3E%3Cpath d='M1 2h1v1h1v1h1v1h1v1h1v1h1v1h1v1h-3v1h1v1h1v1h-1v-1h-1v-1h-1v-1h-1v1h-1v1h-1z' fill='%23fff'/%3E%3C/svg%3E") 1 1, auto;
+}
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; cursor: var(--cursor); }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg);
+  position: relative;
+  isolation: isolate;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-display);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.4em;
+}
+h1 { font-size: clamp(2.6rem, 9vw, 5rem); }
+h2 { font-size: clamp(1.6rem, 5vw, 2.4rem); }
+h3 { font-family: var(--font-body); font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
+
+/* "WelcOme!" mixed-size letters — built by SplitItUp.bouncy() */
+.bouncy { display: inline-flex; align-items: baseline; flex-wrap: wrap; }
+.bouncy span { display: inline-block; transition: transform var(--t) var(--bounce); }
+.bouncy:hover span:nth-child(odd) { transform: translateY(-4px) rotate(-4deg); }
+.bouncy:hover span:nth-child(even) { transform: translateY(2px) rotate(3deg); }
+
+a { color: var(--ink); text-underline-offset: 3px; }
+a, button, [role="button"], label, input[type="checkbox"] { cursor: pointer; }
+.muted { color: var(--ink-soft); }
+.mono { font-family: var(--font-mono); }
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+:focus-visible { outline: 2.5px solid var(--sky-deep); outline-offset: 3px; }
+
+/* ==========================================================
+   CONFETTI LAYER — SplitItUp.confetti() fills it
+   ========================================================== */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti > * { position: absolute; translate: -50% -50%; }
+.confetti svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+/* ==========================================================
+   LABELS — thin outlined boxes, tilted, stacked
+   ========================================================== */
+.label {
+  display: inline-block;
+  padding: 0.18em 0.75em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--bg);
+  border: var(--line);
+  border-radius: 4px;
+  rotate: var(--r, 0deg);
+  transition: rotate var(--t) var(--bounce), translate var(--t) var(--bounce);
+}
+.label--round { border-radius: var(--pill); }
+a.label:hover { rotate: 0deg; translate: 4px 0; }
+
+/* messy nav stack */
+.nav-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+.nav-stack .label { margin-top: -3px; }
+.nav-stack .label:nth-child(1) { --r: 0deg; }
+.nav-stack .label:nth-child(2) { --r: 4deg; margin-left: 10px; }
+.nav-stack .label:nth-child(3) { --r: 9deg; margin-left: 14px; }
+.nav-stack .label:nth-child(4) { --r: 5deg; margin-left: 8px; }
+.nav-stack .label:nth-child(5) { --r: 13deg; margin-left: 4px; }
+.nav-stack .label:nth-child(6) { --r: 18deg; margin-left: 0; }
+
+/* ==========================================================
+   BUTTONS
+   ========================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: 44px;
+  padding: 0.55em 1.3em;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--bg);
+  border: var(--line);
+  border-radius: var(--pill);
+  transition: transform var(--t) var(--bounce), background var(--t) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { transform: rotate(-2deg) scale(1.03); }
+.btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.btn--sky   { background: var(--sky); }
+.btn--mint  { background: var(--mint); }
+.btn--ink   { background: var(--ink); color: var(--bg); }
+/* iOS-style grey: no outline, like "Play / Shuffle" */
+.btn--grey  { background: var(--grey-1); border-color: transparent; border-radius: 12px; color: var(--ink); }
+.btn--grey:hover { background: var(--grey-2); transform: none; }
+.btn--sm { min-height: 34px; font-size: 0.85rem; padding: 0.3em 0.95em; }
+.btn--icon { width: 44px; padding: 0; }
+
+/* ---------- form fields ---------- */
+.field {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55em 1em;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: var(--line);
+  border-radius: 12px;
+}
+.field::placeholder { color: var(--ink-soft); }
+
+/* ==========================================================
+   FROSTED WIDGET — iOS notification look
+   <div class="widget"><div class="widget__icon">…</div>
+     <div class="widget__body"><b>Title</b><p>Text</p></div>
+     <span class="widget__time">now</span></div>
+   ========================================================== */
+.widget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.widget__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 1.2rem;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.widget__body { flex: 1; min-width: 0; }
+.widget__body b { display: block; font-size: 0.95rem; }
+.widget__body p { margin: 0; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget__time { align-self: flex-start; font-size: 0.8rem; color: var(--ink-soft); }
+.widget--pop { animation: widget-in 500ms var(--bounce) both; }
+@keyframes widget-in { from { opacity: 0; transform: translateY(-14px) scale(0.96); } }
+
+/* larger frosted panel (e.g. around PayPal buttons) */
+.card {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-radius: 26px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.card__inner { background: var(--bg); border-radius: 16px; padding: 16px; }
+
+/* ==========================================================
+   NUMBER BADGE — little red circle
+   ========================================================== */
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--badge);
+  border: 2px solid #fff;
+  border-radius: var(--pill);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.badge--sky { background: var(--sky-deep); }
+
+/* ==========================================================
+   METAL FOLDER — skeuomorphic grey folder with a star
+   <button class="folder"><span class="badge">1</span><span class="folder__label">Taco night</span></button>
+   ========================================================== */
+.folder {
+  --w: 132px;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  transition: transform var(--t) var(--bounce);
+}
+.folder:hover { transform: translateY(-4px) rotate(-2deg); }
+.folder__art {
+  position: relative;
+  width: var(--w);
+  height: calc(var(--w) * 0.78);
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.18));
+}
+/* back panel with tab */
+.folder__art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #A9A9AE, #77777C);
+  border-radius: 6px 10px 8px 8px;
+  clip-path: polygon(0 6%, 38% 6%, 44% 0, 100% 0, 100% 100%, 0 100%);
+}
+/* front panel, slightly skewed toward the viewer */
+.folder__front {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 80%;
+  border-radius: 6px 6px 8px 8px;
+  background: linear-gradient(180deg, #D1D1D6 0%, #A5A5AA 55%, #8E8E93 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 4px rgba(0, 0, 0, 0.15);
+  transform: perspective(300px) rotateX(-12deg);
+  transform-origin: bottom;
+  display: grid;
+  place-items: center;
+}
+.folder__front::after {
+  content: "";
+  width: 42%;
+  aspect-ratio: 1;
+  background: linear-gradient(180deg, #5A5A5F, #6E6E73);
+  -webkit-mask: var(--star) center / contain no-repeat;
+  mask: var(--star) center / contain no-repeat;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5));
+}
+.folder > .badge { position: absolute; top: -8px; left: -8px; z-index: 1; }
+.folder__label { font-size: 0.85rem; font-weight: 600; max-width: var(--w); text-align: center; line-height: 1.25; }
+.folder__label small { display: block; font-weight: 400; color: var(--ink-soft); }
+
+/* ==========================================================
+   RECEIPT
+   <div class="receipt-wrap"><article class="receipt">…</article></div>
+   The wrap carries rotation + shadow (mask would clip a box-shadow).
+   ========================================================== */
+.receipt-wrap {
+  --tilt: 0deg;
+  position: relative;
+  width: min(100%, 380px);
+  margin: 0 auto;
+  transform: rotate(var(--tilt));
+  filter: drop-shadow(0 12px 16px rgba(0, 0, 0, 0.12)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+}
+
+.receipt {
+  --zig: 8px;
+  position: relative;
+  padding: calc(var(--zig) + 22px) 24px calc(var(--zig) + 20px);
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  text-transform: uppercase;
+  color: #36363A;
+  background-color: var(--paper);
+  background-image:
+    var(--grain),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.025) 70%, rgba(255, 255, 255, 0.5));
+  background-size: 240px 240px, 100% 100%;
+  -webkit-mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--zig)) var(--zig) repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 2 * var(--zig) + 1px) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--zig)) var(--zig) repeat-x;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--zig)) var(--zig) repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 2 * var(--zig) + 1px) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(2 * var(--zig)) var(--zig) repeat-x;
+}
+
+.receipt__merchant {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  line-height: 1.1;
+  margin: 0 0 4px;
+}
+.receipt__sub { text-align: center; margin: 0 0 10px; }
+.receipt__meta { display: flex; justify-content: space-between; gap: 12px; }
+.receipt hr { border: 0; border-top: 1.5px dashed rgba(54, 54, 58, 0.5); margin: 10px 0; }
+.receipt__table { width: 100%; border-collapse: collapse; }
+.receipt__table th { font-weight: 400; text-align: left; padding: 0 0 4px; }
+.receipt__table td { vertical-align: top; padding: 2px 0; }
+.receipt__table .qty { width: 2.6em; }
+.receipt__table .amt { text-align: right; width: 5.5em; white-space: nowrap; }
+.receipt__table th.amt { text-align: right; }
+.receipt__row { display: flex; justify-content: space-between; gap: 12px; }
+.receipt__total { font-weight: 700; font-size: 1.05rem; }
+.receipt__thanks { text-align: center; margin: 14px 0 6px; }
+.receipt__barcode {
+  font-family: var(--font-barcode);
+  font-size: 2.8rem;
+  line-height: 1;
+  text-align: center;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #36363A;
+  margin-top: 4px;
+}
+.receipt__brand { text-align: center; font-size: 0.72rem; margin-top: 2px; text-transform: lowercase; }
+@media (max-width: 480px) {
+  .receipt { padding-left: 16px; padding-right: 16px; }
+  .receipt__grid { margin: 0 -10px; }
+}
+
+/* AG Grid sitting inside a receipt (theme params live in ui.js gridTheme()) */
+.receipt__grid { margin: 0 -8px; text-transform: none; }
+.receipt__grid .ag-header-cell-text { text-transform: uppercase; letter-spacing: 0.04em; }
+.receipt__grid .ag-cell { text-transform: uppercase; }
+.receipt__grid .ag-cell-inline-editing { text-transform: none; }
+/* AG Grid keeps 150px free for its "no rows" overlay; short receipts don't need it */
+.receipt__grid .ag-center-cols-viewport { min-height: 0 !important; }
+
+/* ==========================================================
+   STAR TAG — price tags and warnings
+   <div class="star-tag"><span>$2.99</span></div>
+   ========================================================== */
+.star-tag {
+  --size: 120px;
+  --bg: var(--c-yellow);
+  --rot: -8deg;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size);
+  aspect-ratio: 1;
+  rotate: var(--rot);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+.star-tag::before,
+.star-tag::after {
+  content: "";
+  position: absolute;
+  -webkit-mask: var(--star) center / 100% 100% no-repeat;
+  mask: var(--star) center / 100% 100% no-repeat;
+}
+.star-tag::before { inset: 0; background: var(--ink); }
+.star-tag::after { inset: 1.5px; background: var(--bg); }
+.star-tag > * {
+  position: relative;
+  z-index: 1;
+  margin-top: 8%;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: calc(var(--size) * 0.15);
+  line-height: 1.05;
+  color: var(--ink);
+  text-align: center;
+}
+.star-tag small {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.5em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.star-tag--blue  { --bg: var(--c-blue); }
+.star-tag--green { --bg: var(--c-green); }
+.star-tag--pink  { --bg: var(--c-pink); }
+.star-tag--lg { --size: 160px; }
+.star-tag--sm { --size: 84px; }
+.star-tag--xs { --size: 36px; --rot: 0deg; }
+
+/* warning: small star with "!" next to the message, in a frosted pill */
+.warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.35em 1.1em 0.35em 0.45em;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--pill);
+}
+.warning .star-tag > * { font-size: 0.95rem; margin-top: 10%; font-weight: 600; }
+
+/* ==========================================================
+   TICKET STUB (share link + QR)
+   ========================================================== */
+.ticket {
+  --stub-w: 148px;
+  position: relative;
+  display: flex;
+  background: var(--bg);
+  border: var(--line);
+  border-radius: 14px;
+  rotate: -1.5deg;
+  box-shadow: var(--shadow-object);
+}
+.ticket__main { flex: 1; padding: 16px 18px; min-width: 0; }
+.ticket__stub {
+  width: var(--stub-w);
+  padding: 14px;
+  background: var(--sky);
+  border-left: 1.25px dashed var(--ink);
+  border-radius: 0 13px 13px 0;
+  display: grid;
+  place-items: center;
+}
+.ticket::before, .ticket::after {
+  content: "";
+  position: absolute;
+  right: calc(var(--stub-w) - 10px);
+  width: 20px;
+  height: 20px;
+  background: var(--bg);
+  border: var(--line);
+  border-radius: 50%;
+}
+.ticket::before { top: -11px; clip-path: inset(50% 0 0 0); }
+.ticket::after { bottom: -11px; clip-path: inset(0 0 50% 0); }
+
+/* ---------- objects scattered on the canvas ---------- */
+.object { rotate: var(--r, 0deg); box-shadow: var(--shadow-object); transition: rotate var(--t) var(--bounce), scale var(--t) var(--bounce); }
+.object:hover { rotate: 0deg; scale: 1.03; }
+.note {
+  padding: 14px 16px;
+  font-size: 0.85rem;
+  background: var(--paper);
+  background-image: var(--grain);
+}
+
+/* ==========================================================
+   WALLET — quilted silver wallet with receipts tucked in
+   .wallet[--n = cards shown]
+     .wallet__back
+     a.wallet__new            (ticket sticking out the top)
+     .wallet__slot > a.wcard[--i, --rot]
+     .wallet__pocket-wrap > .wallet__pocket
+   ========================================================== */
+.wallet {
+  --n: 1;
+  --gap: 50px;          /* how much of each receipt peeks out */
+  --card-h: 176px;
+  --peek-last: 96px;    /* visible height of the front receipt */
+  --quilt:
+    repeating-linear-gradient(45deg, transparent 0 30px, rgba(255, 255, 255, 0.55) 30px 31.5px, rgba(0, 0, 0, 0.06) 31.5px 33px),
+    repeating-linear-gradient(-45deg, transparent 0 30px, rgba(255, 255, 255, 0.55) 30px 31.5px, rgba(0, 0, 0, 0.06) 31.5px 33px);
+  position: relative;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding-top: 48px;
+}
+.wallet.is-open { --gap: 124px; }
+
+.wallet__back {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  border-radius: 34px;
+  background:
+    var(--quilt),
+    radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.35), transparent 60%),
+    linear-gradient(180deg, #A1A1A6, #6E6E73);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.45), var(--shadow);
+}
+.wallet__back::before {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.55);
+  border-radius: 24px;
+}
+
+/* "+ New receipt" ticket poking out above the wallet, behind the receipts */
+.wallet__new {
+  position: absolute;
+  top: 0;
+  right: 30px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 150px;
+  height: 92px;
+  padding-top: 8px;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--sky);
+  border: var(--line);
+  border-radius: 10px 10px 0 0;
+  rotate: 7deg;
+  transition: translate var(--t) var(--bounce);
+}
+.wallet__new::after {
+  content: "";
+  position: absolute;
+  top: 33px;
+  left: 8px;
+  right: 8px;
+  border-top: 1.25px dashed var(--ink);
+}
+.wallet__new:hover { translate: 0 -8px; }
+
+.wallet__slot {
+  position: relative;
+  z-index: 2;
+  height: calc((var(--n) - 1) * var(--gap) + var(--peek-last));
+  margin: 0 7%;
+  transition: height 450ms var(--bounce);
+}
+
+.wcard {
+  --i: 0;
+  --rot: 0deg;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--i) * var(--gap));
+  height: var(--card-h);
+  display: block;
+  text-decoration: none;
+  color: #36363A;
+  rotate: var(--rot);
+  filter: drop-shadow(0 -2px 4px rgba(0, 0, 0, 0.1));
+  transition: top 450ms var(--bounce), rotate 450ms var(--bounce), translate var(--t) var(--bounce);
+}
+.wallet.is-open .wcard { rotate: calc(var(--rot) * 2); }
+.wcard:hover, .wcard:focus-visible { translate: 0 -8px; }
+.wcard__paper {
+  --zig: 7px;
+  height: 100%;
+  padding: calc(var(--zig) + 12px) 18px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  text-transform: uppercase;
+  background-color: var(--paper);
+  background-image: var(--grain), linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 40%);
+  background-size: 240px 240px, 100% 100%;
+  -webkit-mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--zig)) var(--zig) repeat-x,
+    linear-gradient(#000 0 0) bottom / 100% calc(100% - var(--zig) + 1px) no-repeat;
+  mask:
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / calc(2 * var(--zig)) var(--zig) repeat-x,
+    linear-gradient(#000 0 0) bottom / 100% calc(100% - var(--zig) + 1px) no-repeat;
+}
+.wcard__row { display: flex; justify-content: space-between; gap: 10px; }
+.wcard__row b { font-size: 0.98rem; letter-spacing: 0.04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wcard hr { border: 0; border-top: 1.25px dashed rgba(54, 54, 58, 0.45); margin: 8px 0; }
+.wcard__bar { height: 6px; margin-top: 6px; border-radius: var(--pill); background: var(--grey-2); overflow: hidden; }
+.wcard__bar span { display: block; height: 100%; background: #7FD9A0; border-radius: inherit; }
+.wcard__barcode { font-family: var(--font-barcode); font-size: 1.9rem; line-height: 1; text-transform: none; text-align: center; margin-top: 8px; overflow: hidden; white-space: nowrap; }
+.wcard--empty .wcard__paper { display: grid; place-content: start center; text-align: center; padding-top: 30px; }
+
+/* front pocket */
+.wallet__pocket-wrap {
+  position: relative;
+  z-index: 3;
+  /* sits right under the slot; the receipts overflow behind it */
+  filter: drop-shadow(0 -3px 6px rgba(0, 0, 0, 0.12)) drop-shadow(0 14px 22px rgba(0, 0, 0, 0.16));
+}
+.wallet__pocket {
+  position: relative;
+  height: 200px;
+  border-radius: 26px 26px 38px 38px;
+  background:
+    var(--quilt),
+    radial-gradient(120% 80% at 25% 0%, rgba(255, 255, 255, 0.75), transparent 60%),
+    linear-gradient(180deg, #E5E5EA 0%, #C7C7CC 60%, #AEAEB2 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.9), inset 0 -3px 6px rgba(0, 0, 0, 0.1);
+  /* thumb notch at the top */
+  -webkit-mask: radial-gradient(64px 24px at 50% 0, #0000 97%, #000 100%);
+  mask: radial-gradient(64px 24px at 50% 0, #0000 97%, #000 100%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 26px 26px;
+  cursor: pointer;
+}
+.wallet__pocket::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 18px 18px 28px 28px;
+  pointer-events: none;
+}
+.wallet__engrave {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  color: rgba(0, 0, 0, 0.32);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.wallet__count {
+  position: relative;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--pill);
+}
+
+/* balance header above the wallet */
+.balance { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.balance__label { margin: 0; font-size: 0.95rem; color: var(--ink-soft); }
+.balance__amount { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(2.4rem, 10vw, 3.4rem); line-height: 1; letter-spacing: -0.02em; }
+.balance__amount.is-hidden { letter-spacing: 0.08em; }
+
+.wallet-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 18px auto 0;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  border-radius: var(--pill);
+}
+.wallet-hint:hover { color: var(--ink); }
+
+/* ==========================================================
+   APP HEADER + WALLET TABS (shared by Wallet / Scan / Receipt)
+   ========================================================== */
+.app-top { text-align: center; }
+.wordmark { font-family: var(--font-display); font-weight: 300; font-size: 1.9rem; letter-spacing: 0.02em; margin: 0; }
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  max-width: 560px;
+  margin: 18px auto 0;
+  padding: 0 10px;
+  border-bottom: var(--line);
+}
+.tab {
+  position: relative;
+  flex: 0 1 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 9px 12px 8px;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background:
+    radial-gradient(120% 90% at 30% 0%, rgba(255, 255, 255, 0.8), transparent 60%),
+    linear-gradient(180deg, #E5E5EA, #C7C7CC);
+  border: var(--line);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  transition: margin var(--t) var(--bounce), padding var(--t) var(--bounce);
+}
+.tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+a.tab:hover { margin-top: 0; padding-top: 12px; padding-bottom: 11px; }
+.tab.is-active {
+  z-index: 1;
+  margin-top: 0;
+  margin-bottom: -1.25px; /* covers the rail so the tab joins the page */
+  padding: 12px 12px 12px;
+  background: var(--bg);
+}
+.tab[aria-disabled="true"] { color: var(--grey-5); cursor: not-allowed; }
+@media (max-width: 480px) {
+  .tabs { padding: 0 4px; gap: 4px; }
+  .tab { flex: 1 1 0; font-size: 0.78rem; gap: 5px; padding-left: 6px; padding-right: 6px; }
+  .tab svg { width: 16px; height: 16px; }
+}
+
+.intro { text-align: center; margin: 34px 0 26px; }
+.intro h1 { justify-content: center; margin: 0 0 6px; }
+.intro p { margin: 0; }
+
+/* ==========================================================
+   SCAN — receipt printer + printout
+   ========================================================== */
+.printer {
+  position: relative;
+  width: min(100%, 460px);
+  margin: 0 auto;
+  padding: 18px 18px 22px;
+  border-radius: 30px;
+  background:
+    radial-gradient(120% 70% at 25% 0%, rgba(255, 255, 255, 0.9), transparent 60%),
+    linear-gradient(180deg, #F2F2F7 0%, #D1D1D6 70%, #C7C7CC 100%);
+  box-shadow: inset 0 2px 0 #fff, inset 0 -4px 8px rgba(0, 0, 0, 0.08), var(--shadow-object);
+}
+.printer__bar { display: flex; align-items: center; justify-content: space-between; margin: 0 6px 12px; }
+.printer__name { font-family: var(--font-display); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(0, 0, 0, 0.38); text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9); }
+.printer__led { width: 10px; height: 10px; border-radius: 50%; background: #7FD9A0; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px #7FD9A0; }
+.printer.is-busy .printer__led { background: var(--c-yellow); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 8px #FFD34D; animation: blink 0.8s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }
+.printer__slot {
+  width: min(88%, 404px);
+  height: 12px;
+  margin: 20px auto 0;
+  border-radius: var(--pill);
+  background: linear-gradient(180deg, #1C1C1E, #3A3A3C);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 250px;
+  padding: 22px 18px;
+  text-align: center;
+  background: var(--bg);
+  border: 1.5px dashed var(--ink);
+  border-radius: 20px;
+  transition: background var(--t) ease, transform var(--t) var(--bounce);
+}
+.drop.is-over { background: #EEF7FF; transform: scale(1.015); }
+.drop__doodle { width: 78px; height: 78px; rotate: -6deg; }
+.drop__title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; }
+.drop__actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.drop small { color: var(--ink-soft); }
+
+.polaroid {
+  margin: 0;
+  padding: 8px 8px 30px;
+  background: #fff;
+  box-shadow: var(--shadow-object);
+  rotate: -4deg;
+  animation: drop-in 420ms var(--bounce) both;
+}
+.polaroid img { display: block; width: 150px; height: 150px; object-fit: cover; background: var(--grey-1); }
+.polaroid figcaption { font-family: var(--font-mono); font-size: 0.7rem; margin-top: 6px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-16px) rotate(8deg) scale(0.9); } }
+
+/* paper coming out of the slot */
+.printout {
+  width: min(100%, 460px);
+  margin: -6px auto 0;
+  padding: 0 24px 36px;
+  overflow: hidden;
+}
+.printout .receipt-wrap { transform-origin: top center; }
+.printout--feed .receipt-wrap { animation: feed 1.3s steps(16) both; }
+.printout--slow .receipt-wrap { animation: feed 9s steps(60) both; }
+@keyframes feed { from { translate: 0 -100%; } }
+
+.skeleton-line { height: 10px; margin: 9px 0; border-radius: 3px; background: linear-gradient(90deg, rgba(0,0,0,.07), rgba(0,0,0,.13), rgba(0,0,0,.07)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* inputs printed on the receipt (merchant, tax, tip) */
+.receipt-input {
+  width: 100%;
+  padding: 0 2px;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.25px dashed transparent;
+  border-radius: 0;
+}
+.receipt-input.receipt__merchant { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.06em; text-align: center; margin-bottom: 4px; }
+.receipt-input:hover { border-bottom-color: rgba(54, 54, 58, 0.45); }
+.receipt-input:focus { outline: none; border-bottom-color: var(--sky-deep); background: rgba(191, 227, 255, 0.35); }
+.receipt__row .receipt-input { width: 6.5em; text-align: right; }
+.receipt__add { margin-top: 8px; font-family: var(--font-mono); text-transform: uppercase; font-size: 0.78rem; }
+
+.grid-x {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1.25px solid transparent;
+  border-radius: 50%;
+}
+.grid-x:hover { color: var(--ink); border-color: var(--ink); background: #fff; }
+
+.scan-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 4px; }
+.scan-status { display: flex; justify-content: center; margin: 22px 0 0; min-height: 0; }
+
+/* ==========================================================
+   RECEIPT PAGE — select what you had
+   ========================================================== */
+.bill-layout { display: grid; gap: 34px; grid-template-columns: minmax(0, 1fr); align-items: start; margin-top: 8px; }
+@media (min-width: 880px) { .bill-layout { grid-template-columns: minmax(0, 1fr) 360px; } }
+.bill-layout .receipt-wrap { width: min(100%, 440px); }
+.bill-side { display: grid; gap: 18px; }
+.bill-total { display: flex; align-items: center; gap: 16px; }
+.bill-total dl { flex: 1; margin: 0; font-size: 0.92rem; }
+.bill-total dl div { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed var(--grey-3); }
+.bill-total dt { color: var(--ink-soft); }
+.bill-total dd { margin: 0; font-family: var(--font-mono); }
+
+.split-pill {
+  min-width: 40px;
+  height: 26px;
+  padding: 0 8px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fff;
+  border: 1.25px solid var(--ink);
+  border-radius: var(--pill);
+  transition: transform var(--t) var(--bounce), background var(--t) ease;
+}
+.split-pill:hover { transform: rotate(-4deg) scale(1.06); }
+.split-pill.is-shared { background: var(--c-yellow); }
+.split-pill:disabled { opacity: 0.35; transform: none; cursor: not-allowed; }
+
+.row-taken { color: rgba(54, 54, 58, 0.45); }
+.row-taken .ag-cell[col-id="name"] { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.paid-stamp {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  color: #2F9E5B;
+  border: 1.5px solid #2F9E5B;
+  border-radius: 4px;
+  rotate: -8deg;
+  text-decoration: none;
+}
+
+.qr { display: block; width: 96px; height: 96px; }
+.qr svg { display: block; width: 100%; height: 100%; }
+
+/* ==========================================================
+   HOST DASHBOARD
+   ========================================================== */
+.host-stats { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 860px; margin: 0 auto; }
+@media (max-width: 640px) { .host-stats { grid-template-columns: 1fr 1fr; } .host-stats .stat:first-child { grid-column: 1 / -1; } }
+.stat { padding: 14px 16px; border-radius: var(--radius); background: var(--glass); backdrop-filter: blur(20px) saturate(1.6); -webkit-backdrop-filter: blur(20px) saturate(1.6); box-shadow: var(--shadow); }
+.stat--mint { background: rgba(207, 243, 224, 0.85); }
+.stat__label { margin: 0; font-size: 0.85rem; color: var(--ink-soft); }
+.stat__value { margin: 2px 0 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.6rem, 5vw, 2.2rem); line-height: 1.1; }
+
+.progress { max-width: 860px; margin: 14px auto 0; height: 12px; border-radius: var(--pill); background: var(--grey-2); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); }
+.progress span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #A8E6B0, #7FD9A0); transition: width 700ms var(--bounce); }
+
+.host-layout { display: grid; gap: 34px; grid-template-columns: minmax(0, 1fr); align-items: start; margin-top: 34px; }
+@media (min-width: 880px) { .host-layout { grid-template-columns: minmax(0, 1fr) 380px; } }
+.host-layout .receipt-wrap { width: min(100%, 460px); }
+.host-side { display: grid; gap: 22px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+
+.live { display: inline-flex; align-items: center; gap: 7px; }
+.live__dot { width: 9px; height: 9px; border-radius: 50%; background: #34C759; box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.5); animation: pulse 1.8s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
+.feed { display: grid; gap: 10px; margin-top: 12px; grid-template-columns: minmax(0, 1fr); }
+.widget--paying { background: rgba(255, 229, 143, 0.7); }
+
+/* paid / partly paid rows */
+.ag-row.row-paid { background-color: rgba(168, 230, 176, 0.45); }
+.ag-row.row-part { background-color: rgba(255, 229, 143, 0.45); }
+.ag-row.row-flash { animation: row-flash 1.6s ease-out; }
+@keyframes row-flash { 0%, 30% { background-color: rgba(127, 217, 160, 0.9); } }
+.status-chip { display: inline-block; padding: 1px 9px; font-family: var(--font-body); font-size: 0.75rem; font-weight: 700; border-radius: var(--pill); border: 1.25px solid currentColor; line-height: 1.6; }
+.status-chip--paid { color: #237A46; background: #fff; }
+.status-chip--paying { color: #8A6100; background: #fff; }
+
+.people-card { margin-top: 34px; }
+.people-card .card__inner { padding: 6px 10px; }
+
+/* ---------- swatches (style guide) ---------- */
+.swatch { border-radius: 16px; overflow: hidden; background: var(--bg); border: var(--line); }
+.swatch__chip { height: 64px; border-bottom: var(--line); }
+.swatch__label { padding: 8px 12px; font-size: 0.82rem; line-height: 1.35; overflow-wrap: anywhere; }
+.swatch__label code { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-soft); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
