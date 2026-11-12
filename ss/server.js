@@ -163,7 +163,7 @@ app.get("/b/:id", (req, res) => {
 
 app.post("/api/orders", async (req, res) => {
   try {
-    const order = await createOrder("5.00", "SplitSnap test payment");
+    const order = await createOrder("5.00", "Split It Up test payment");
     res.json({ id: order.id });
   } catch (err) {
     console.error(err);
