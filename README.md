@@ -47,9 +47,6 @@ Split It Up handles it as it happens. Each time someone pays, they snap the rece
 | **Render** | Hosting for the live demo. |
 
 ## How the money stays correct
-
-Judges and friends both need to trust the numbers, so:
-
 - **All money is integer cents** on the server, and is only formatted as dollars for display.
 - **The server computes every amount.** The browser only sends `{ name, claims: [{ itemId, split }] }`. It never sends a price or total, so editing the page can't change what you pay.
 - **Tax and tip are proportional:** your share = (your item cents ÷ bill item subtotal) × tax (or tip).
