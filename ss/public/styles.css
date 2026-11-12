@@ -912,12 +912,14 @@ a.tab:hover { margin-top: 0; padding-top: 12px; padding-bottom: 11px; }
 .bill-total dd { margin: 0; font-family: var(--font-mono); }
 
 .split-pill {
-  min-width: 40px;
-  height: 26px;
-  padding: 0 8px;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
+  min-width: 46px;
+  height: 30px;
+  padding: 0 10px;
+  /* body font: its ½ ⅓ ¼ glyphs are far clearer than the receipt mono */
+  font-family: var(--font-body);
+  font-size: 1.15rem;
   font-weight: 700;
+  line-height: 1;
   color: var(--ink);
   background: #fff;
   border: 1.25px solid var(--ink);

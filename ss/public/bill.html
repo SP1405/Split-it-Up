@@ -205,7 +205,7 @@
             tooltipValueGetter: (p) => p.value + (p.data.taken > 0 && p.data.taken < UNITS ? " (part already paid)" : ""),
           },
           {
-            colId: "split", headerName: "Split", width: 62, cellStyle: { display: "grid", placeItems: "center", padding: 0 },
+            colId: "split", headerName: "Split", width: 70, cellStyle: { display: "grid", placeItems: "center", padding: 0 },
             cellRenderer: (p) => {
               const opts = allowed(p.data);
               if (!opts.length) return '<span class="paid-stamp" style="margin:0">PAID</span>';
