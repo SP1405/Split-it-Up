@@ -29,8 +29,7 @@ Split It Up handles it as it happens. Each time someone pays, they snap the rece
 2. Tap **Scan** and upload any restaurant receipt photo.
 3. Review the items, add a tip, enter your name, and **create the bill**.
 4. Open the share link (or scan the QR code with your phone), tick some items, and pay with the **PayPal button**:
-   - **Sandbox buyer login:** `TODO: sandbox personal email` / `TODO: password`
-5. Watch the payment appear on the host dashboard (`/b/<id>/host`).
+   - **Sandbox buyer login:** `sb-fk75e53844518@personal.example.com` / `ewXi1iN^`5. Watch the payment appear on the host dashboard (`/b/<id>/host`).
 
 > Bills are stored on the free server's temporary disk, so they reset when the server sleeps or redeploys. Create a fresh bill rather than reusing an old link.
 
