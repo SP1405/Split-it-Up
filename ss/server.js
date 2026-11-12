@@ -11,6 +11,8 @@ const { priceClaims } = require("./lib/split");
 
 const app = express();
 app.use(express.json({ limit: "10mb" })); // receipt photos are big
+// Home page -> the scan page (the wallet design will replace this later)
+app.get("/", (req, res) => res.redirect("/scan.html"));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/api/config", (req, res) => {
