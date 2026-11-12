@@ -86,8 +86,8 @@ host.html  ── every 3s ───────▶ GET  /api/bills/:id        �
 You need **Node.js 20+**, a **PayPal developer account** (sandbox app credentials), and a **Gemini API key** (free at [Google AI Studio](https://aistudio.google.com/apikey)).
 
 ```bash
-git clone https://github.com/swathipappoppula/paypal-proj-.git
-cd paypal-proj-/ss
+git clone https://github.com/swathipappoppula/Split-it-Up.git
+cd Split-it-Up/ss
 npm install
 ```
 
